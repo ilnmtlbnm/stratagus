@@ -368,7 +368,7 @@ static std::map<int, sdl2::ChunkPtr> SampleMap;
 /**
 **  Callback for PlaySoundFile
 */
-static void PlaySoundFileCallback(int channel)
+__attribute__((noinline,used)) void PlaySoundFileCallback(int channel)
 {
 	LuaActionListener *listener = ChannelMap[channel];
 	ChannelMap[channel] = nullptr;

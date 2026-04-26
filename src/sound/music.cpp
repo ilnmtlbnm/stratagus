@@ -62,7 +62,10 @@ static std::atomic<bool> IsCallbackEnabled = false;
 /**
 **  Check if music is finished and play the next song
 */
-static void CheckMusicFinished()
+// dusty-bytes: take int arg (ignored) so signature matches HandleSoundEvent's
+// void(*)(int) cast. Wasm requires exact type-tag match for indirect calls;
+// native ABI tolerates extra args, wasm does not.
+__attribute__((noinline,used)) void CheckMusicFinished(int /*channel*/)
 {
 	if (SoundEnabled() && IsMusicEnabled()) {
 		lua_getglobal(Lua, "MusicStopped");
@@ -81,7 +84,7 @@ static void CheckMusicFinished()
 **  Callback for when music has finished
 **  Note: we are in the sdl audio thread, so dispatch an event to the main event loop
 */
-static void MusicFinishedCallback()
+__attribute__((noinline,used)) void MusicFinishedCallback()
 {
 	if (!IsCallbackEnabled) {
 		return;

@@ -303,7 +303,7 @@ static void ChannelFinished(int channel)
 	Channels[channel].Unit = nullptr;
 }
 
-void HandleSoundEvent(SDL_Event &event)
+__attribute__((noinline,used)) void HandleSoundEvent(SDL_Event &event)
 {
 	((void (*)(int channel))(event.user.data1))((int) event.user.code);
 }
