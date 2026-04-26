@@ -663,17 +663,18 @@ void CGraphic::Load(bool grayscale)
 		Height = GetGraphicHeight();
 	}
 
-	Assert(Width <= GetGraphicWidth() && Height <= GetGraphicHeight());
-
-	if (GetGraphicWidth() % Width != 0 || GetGraphicHeight() % Height != 0) {
-		ErrorPrint("Invalid graphic (width, height) '%s'\n"
-		           "Expected: (%d,%d)  Found: (%d,%d)\n",
-		           File.u8string().c_str(),
-		           Width,
-		           Height,
-		           GetGraphicWidth(),
-		           GetGraphicHeight());
-		ExitFatal(-1);
+	if (Width > GetGraphicWidth() || Height > GetGraphicHeight()
+	    || GetGraphicWidth() % Width != 0 || GetGraphicHeight() % Height != 0) {
+		fprintf(stderr,
+		        "Graphic '%s' dimension mismatch (file %dx%d, declared %dx%d): "
+		        "treating as single-frame fallback (demo placeholder)\n",
+		        File.u8string().c_str(),
+		        GetGraphicWidth(),
+		        GetGraphicHeight(),
+		        Width,
+		        Height);
+		Width = GetGraphicWidth();
+		Height = GetGraphicHeight();
 	}
 
 	NumFrames = GetGraphicWidth() / Width * GetGraphicHeight() / Height;
