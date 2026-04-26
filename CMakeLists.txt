@@ -724,6 +724,17 @@ elseif(EMSCRIPTEN)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EMS_SDL_FLAGS}")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EMS_SDL_FLAGS}")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_SDL_FLAGS}")
+
+	# dusty-bytes: runtime link flags for Worker + ASYNCIFY + preloaded data.wargus.
+	# STRATAGUS_DATA_PRELOAD points at the host directory bundled into MEMFS at /data.wargus.
+	# Override at configure time: -DSTRATAGUS_DATA_PRELOAD=/abs/path@/data.wargus
+	if(NOT DEFINED STRATAGUS_DATA_PRELOAD)
+		set(STRATAGUS_DATA_PRELOAD "${CMAKE_SOURCE_DIR}/../../dusty-games-platform/games-demo/warcraft2/data.wargus@/data.wargus")
+	endif()
+	set(EMS_LINK_FLAGS "-sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=67108864 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -fno-lto --preload-file ${STRATAGUS_DATA_PRELOAD}")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto")
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_LINK_FLAGS}")
 	set(SDL2_FOUND TRUE)
 	set(SDL2_LIBRARY "")
 	set(SDL2_INCLUDE_DIR "")
