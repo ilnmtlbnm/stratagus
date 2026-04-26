@@ -647,10 +647,33 @@ endif()
 if(BUILD_VENDORED_LUA)
 	vendored_lua()
 elseif(EMSCRIPTEN)
-	# dusty-bytes: Lua/Tolua++ wiring deferred to later configure cycle
-	# (vendored sources not present; emcc port TBD). Skip find_package so
-	# configure can proceed past this point and surface remaining blockers.
-	message(STATUS "dusty-bytes: skipping system Lua/Tolua++ for Emscripten build")
+	# dusty-bytes: build vendored lua + toluapp under emcc for linking,
+	# AND build a HOST toluapp binary for the .pkg -> tolua.cpp codegen step
+	# (toluapp must run on the host, not in WASM).
+	include(ExternalProject)
+
+	# Emcc-side: vendored lua + toluapp static libs (vendored_lua uses
+	# ExternalProject_Add which inherits the parent's toolchain/env, so
+	# these get built with emcc as desired).
+	vendored_lua()
+
+	# Host-side toluapp: separate ExternalProject_Add that explicitly
+	# clears the Emscripten toolchain so cmake picks up the host compiler.
+	set(_DUSTY_TOLUA_HOST_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/lua-host")
+	ExternalProject_Add(lua_host
+		SOURCE_DIR ${CMAKE_SOURCE_DIR}/third-party/lua-5.1.5/
+		PREFIX "${_DUSTY_TOLUA_HOST_PREFIX}"
+		CMAKE_ARGS
+			-DCMAKE_TOOLCHAIN_FILE=
+			-DCMAKE_C_COMPILER=cc
+			-DCMAKE_CXX_COMPILER=c++
+			-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+		BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target toluapp
+		INSTALL_COMMAND ""
+	)
+	# Override TOLUA++_APP to point at the host binary (vendored_lua set it
+	# to the emcc-built one, which can't execute on the host).
+	set(TOLUA++_APP "${_DUSTY_TOLUA_HOST_PREFIX}/src/lua_host-build/toluapp")
 else()
 	find_package(Lua 5.1 EXACT REQUIRED)
 	find_package(Tolua++ REQUIRED)
@@ -1139,12 +1162,22 @@ else()
 	list(APPEND CLEAN_FILES version-generated.h)
 endif()
 
-add_custom_command(OUTPUT tolua.cpp
-	COMMAND ${TOLUA++_APP} ARGS -L stratagus.lua -o ${CMAKE_CURRENT_BINARY_DIR}/tolua.cpp stratagus.pkg
-	DEPENDS ${tolua_FILES}
-	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/tolua
-	VERBATIM
-)
+if(EMSCRIPTEN)
+	# dusty-bytes: codegen step needs the host toluapp binary built first.
+	add_custom_command(OUTPUT tolua.cpp
+		COMMAND ${TOLUA++_APP} ARGS -L stratagus.lua -o ${CMAKE_CURRENT_BINARY_DIR}/tolua.cpp stratagus.pkg
+		DEPENDS ${tolua_FILES} lua_host
+		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/tolua
+		VERBATIM
+	)
+else()
+	add_custom_command(OUTPUT tolua.cpp
+		COMMAND ${TOLUA++_APP} ARGS -L stratagus.lua -o ${CMAKE_CURRENT_BINARY_DIR}/tolua.cpp stratagus.pkg
+		DEPENDS ${tolua_FILES}
+		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/tolua
+		VERBATIM
+	)
+endif()
 
 add_library(stratagus_lib STATIC ${stratagus_SRCS} ${stratagus_HDRS})
 if (ENABLE_STDIO_REDIRECT)
@@ -1205,6 +1238,9 @@ endif()
 
 if(BUILD_VENDORED_LUA)
 	add_dependencies(stratagus_lib lua)
+elseif(EMSCRIPTEN)
+	# dusty-bytes: emcc-side lua + host-side toluapp must build before stratagus_lib.
+	add_dependencies(stratagus_lib lua lua_host)
 endif()
 
 if(BUILD_VENDORED_SDL)
