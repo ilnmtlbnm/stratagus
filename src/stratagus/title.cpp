@@ -42,6 +42,24 @@ std::vector<std::unique_ptr<TitleScreen>> TitleScreens; /// Title screens to sho
 static bool WaitNoEvent;             /// Flag got an event
 extern std::string CliMapName;
 
+// dusty-bytes: named callbacks (extern "C") + noinline + unique side effect.
+// ASYNCIFY_REMOVE targets them by simple symbol name. Without the unique writes,
+// ICF (LLD identical-code folding) merges the trivial bodies into a single
+// stub which ASYNCIFY then re-instruments -> vii signature mismatch on the
+// indirect dispatch in WaitEventsOneFrame.
+namespace {
+volatile unsigned dustyTitleCbTag;
+}
+extern "C" {
+__attribute__((noinline)) void TitleCb_ButtonPressed(unsigned)         { dustyTitleCbTag = 0x11; WaitNoEvent = false; }
+__attribute__((noinline)) void TitleCb_ButtonReleased(unsigned)        { dustyTitleCbTag = 0x12; }
+__attribute__((noinline)) void TitleCb_MouseMoved(const PixelPos &)    { dustyTitleCbTag = 0x13; }
+__attribute__((noinline)) void TitleCb_MouseExit()                     { dustyTitleCbTag = 0x14; }
+__attribute__((noinline)) void TitleCb_KeyPressed(unsigned, unsigned)  { dustyTitleCbTag = 0x15; WaitNoEvent = false; }
+__attribute__((noinline)) void TitleCb_KeyReleased(unsigned, unsigned) { dustyTitleCbTag = 0x16; }
+__attribute__((noinline)) void TitleCb_KeyRepeated(unsigned, unsigned) { dustyTitleCbTag = 0x17; }
+}
+
 static void ApplyStretchMode(CGraphic &g, EStretchMode mode, int width, int height)
 {
 	switch (mode) {
@@ -93,13 +111,13 @@ void TitleScreen::ShowTitleImage()
 
 	WaitNoEvent = true;
 
-	callbacks.ButtonPressed = +[](unsigned) { WaitNoEvent = false; };
-	callbacks.ButtonReleased = +[](unsigned) {};
-	callbacks.MouseMoved = +[](const PixelPos &) {};
-	callbacks.MouseExit = +[]() {};
-	callbacks.KeyPressed = +[](unsigned, unsigned) { WaitNoEvent = false; };
-	callbacks.KeyReleased = +[](unsigned, unsigned) {};
-	callbacks.KeyRepeated = +[](unsigned, unsigned) {};
+	callbacks.ButtonPressed = &TitleCb_ButtonPressed;
+	callbacks.ButtonReleased = &TitleCb_ButtonReleased;
+	callbacks.MouseMoved = &TitleCb_MouseMoved;
+	callbacks.MouseExit = &TitleCb_MouseExit;
+	callbacks.KeyPressed = &TitleCb_KeyPressed;
+	callbacks.KeyReleased = &TitleCb_KeyReleased;
+	callbacks.KeyRepeated = &TitleCb_KeyRepeated;
 	//callbacks.NetworkEvent = NetworkEvent;
 	callbacks.NetworkEvent = nullptr;
 

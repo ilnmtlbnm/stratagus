@@ -153,22 +153,46 @@ void scrollToTop(gcn::ScrollArea *scrollArea)
 
 #endif
 
-static void MenuHandleMouseMove(const PixelPos &screenPos)
+// dusty-bytes: extern "C" + noinline + unique side effect so ASYNCIFY_REMOVE
+// can target these by simple symbol name AND so neither inlining nor ICF (LLD's
+// identical-code folding) merges them with siblings that share a body.
+// Without this, ASYNCIFY rewrites a synthesized/merged stub and the indirect
+// dispatch of the EventCallback fnptr trips a vii signature mismatch in
+// WaitEventsOneFrame. See CMakeLists.txt EMS_LINK_FLAGS.
+namespace {
+// Volatile sinks defeat ICF body-equivalence and prevent the function bodies
+// from collapsing to a single shared stub. They also keep the noinline funcs
+// alive across optimization. Read-only here; the writes are observable.
+volatile unsigned dustyMenuCbTag;
+}
+extern "C" {
+__attribute__((noinline))
+void MenuHandleMouseMove(const PixelPos &screenPos)
 {
+	dustyMenuCbTag = 0x10;
 	PixelPos pos(screenPos);
 	HandleCursorMove(&pos.x, &pos.y);
 }
-static void MenuHandleKeyDown(unsigned key, unsigned keychar)
+__attribute__((noinline))
+void MenuHandleKeyDown(unsigned key, unsigned keychar)
 {
+	dustyMenuCbTag = 0x20;
 	HandleKeyModifiersDown(key, keychar);
 }
-static void MenuHandleKeyUp(unsigned key, unsigned keychar)
+__attribute__((noinline))
+void MenuHandleKeyUp(unsigned key, unsigned keychar)
 {
+	dustyMenuCbTag = 0x30;
 	HandleKeyModifiersUp(key, keychar);
 }
-static void MenuHandleKeyRepeat(unsigned key, unsigned keychar)
+__attribute__((noinline))
+void MenuHandleKeyRepeat(unsigned key, unsigned keychar)
 {
+	dustyMenuCbTag = 0x40;
 	HandleKeyModifiersDown(key, keychar);
+}
+__attribute__((noinline))
+void MenuHandleButtonNoop(unsigned) { dustyMenuCbTag = 0x50; }
 }
 
 /**
@@ -190,8 +214,8 @@ void initGuichan()
 	Gui->setInput(Input.get());
 	Gui->setTop(nullptr);
 
-	GuichanCallbacks.ButtonPressed = [](unsigned) {};
-	GuichanCallbacks.ButtonReleased = [](unsigned) {};
+	GuichanCallbacks.ButtonPressed = &MenuHandleButtonNoop;
+	GuichanCallbacks.ButtonReleased = &MenuHandleButtonNoop;
 	GuichanCallbacks.MouseMoved = &MenuHandleMouseMove;
 	GuichanCallbacks.MouseExit = &HandleMouseExit;
 	GuichanCallbacks.KeyPressed = &MenuHandleKeyDown;
