@@ -806,7 +806,6 @@ void RealizeVideoMemory()
 		return;
 	}
 	if (NumRects) {
-		SDL_FillRect(TheScreen, nullptr, 0);
 		//SDL_UpdateWindowSurfaceRects(TheWindow, Rects, NumRects);
 		SDL_UpdateTexture(TheTexture, nullptr, TheScreen->pixels, TheScreen->pitch);
 		if (!RenderWithShader(TheRenderer, TheWindow, TheTexture)) {
