@@ -725,21 +725,21 @@ elseif(EMSCRIPTEN)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EMS_SDL_FLAGS}")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_SDL_FLAGS}")
 
-	# dusty-bytes: runtime link flags for Worker + ASYNCIFY + preloaded data.wargus.
+	# dusty-bytes: runtime link flags for Worker + JSPI + preloaded data.wargus.
 	# STRATAGUS_DATA_PRELOAD points at the host directory bundled into MEMFS at /data.wargus.
 	# Override at configure time: -DSTRATAGUS_DATA_PRELOAD=/abs/path@/data.wargus
 	if(NOT DEFINED STRATAGUS_DATA_PRELOAD)
 		set(STRATAGUS_DATA_PRELOAD "${CMAKE_SOURCE_DIR}/../../../dusty-games-platform/games-demo/warcraft2/data.wargus@/data.wargus")
 	endif()
-	# dusty-bytes: ASYNCIFY_REMOVE list. These are EventCallback function pointers
-	# stored in the indirect function table. ASYNCIFY rewrites lambdas/free functions
+	# dusty-bytes: Task 10b - replaced ASYNCIFY with JSPI. ASYNCIFY rewrites lambdas
 	# reachable from SDL_Delay (via WaitEventsOneFrame) to take an extra async-state
-	# arg, but the table type tag (vi/vii) is fixed at compile time -> dispatch
-	# trips a "function signature mismatch" RuntimeError. Removing async transform
-	# from these short, non-yielding callbacks keeps their signatures matching the
-	# table tag. See refactors in src/stratagus/title.cpp + src/ui/widgets.cpp.
+	# arg, but the indirect function table type tag (vii) is fixed at compile time ->
+	# dispatch trips "function signature mismatch" ~10s after menu render. ASYNCIFY_REMOVE
+	# on public callbacks was necessary but insufficient (trap origin is inlined deeper).
+	# JSPI suspends via real JS Promises at emscripten_sleep/SDL_Delay; doesn't rewrite
+	# fnptr type tags. ASYNCIFY_REMOVE list left in place (no-op under JSPI; harmless).
 	set(ASYNCIFY_REMOVE_LIST "[\"MenuHandleKeyDown\",\"MenuHandleKeyUp\",\"MenuHandleKeyRepeat\",\"MenuHandleMouseMove\",\"MenuHandleButtonNoop\",\"TitleCb_ButtonPressed\",\"TitleCb_ButtonReleased\",\"TitleCb_MouseMoved\",\"TitleCb_MouseExit\",\"TitleCb_KeyPressed\",\"TitleCb_KeyReleased\",\"TitleCb_KeyRepeated\"]")
-	set(EMS_LINK_FLAGS "-sASYNCIFY -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=67108864 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -fno-lto --preload-file ${STRATAGUS_DATA_PRELOAD}")
+	set(EMS_LINK_FLAGS "-sJSPI=1 -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=67108864 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -fno-lto --preload-file ${STRATAGUS_DATA_PRELOAD}")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_LINK_FLAGS}")
