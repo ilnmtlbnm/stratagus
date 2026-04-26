@@ -646,6 +646,11 @@ endif()
 
 if(BUILD_VENDORED_LUA)
 	vendored_lua()
+elseif(EMSCRIPTEN)
+	# dusty-bytes: Lua/Tolua++ wiring deferred to later configure cycle
+	# (vendored sources not present; emcc port TBD). Skip find_package so
+	# configure can proceed past this point and surface remaining blockers.
+	message(STATUS "dusty-bytes: skipping system Lua/Tolua++ for Emscripten build")
 else()
 	find_package(Lua 5.1 EXACT REQUIRED)
 	find_package(Tolua++ REQUIRED)
