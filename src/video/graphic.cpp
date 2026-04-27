@@ -35,6 +35,7 @@
 ----------------------------------------------------------------------------*/
 #include "video.h"
 
+#include "dusty_log.h"
 #include "intern_video.h"
 #include "iolib.h"
 #include "player.h"
@@ -64,8 +65,8 @@ static std::map<fs::path, std::weak_ptr<CGraphic>> GraphicHash;
 **  @param surface target surface
 */
 void CGraphic::DrawClip(int x, int y,
-						SDL_Surface *surface /*= TheScreen*/) const
-{
+						SDL_Surface *surface /*= TheScreen*/) const {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawClip", File.u8string().c_str()); return; }
 	int oldx = x;
 	int oldy = y;
 	int w = Width;
@@ -86,8 +87,8 @@ void CGraphic::DrawClip(int x, int y,
 **	@param surface target surface
 */
 void CGraphic::DrawSub(int gx, int gy, int w, int h, int x, int y,
-					   SDL_Surface *surface /*= TheScreen*/) const
-{
+					   SDL_Surface *surface /*= TheScreen*/) const {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawSub", File.u8string().c_str()); return; }
 	Assert(surface);
 
 	SDL_Rect srect = {Sint16(gx), Sint16(gy), Uint16(w), Uint16(h)};
@@ -111,9 +112,8 @@ void CGraphic::DrawSub(int gx, int gy, int w, int h, int x, int y,
 **  @param surface  target surface
 */
 void CGraphic::DrawSubCustomMod(int gx, int gy, int w, int h, int x, int y,
-							    pixelModifier modifier, const uint32_t param,
-								SDL_Surface *surface /*= TheScreen*/) const
-{
+							    pixelModifier modifier, const uint32_t param, SDL_Surface *surface /*= TheScreen*/) const {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawSubCustomMod", File.u8string().c_str()); return; }
 	Assert(surface);
 	Assert(surface->format->BitsPerPixel == 32);
 
@@ -150,8 +150,8 @@ void CGraphic::DrawSubCustomMod(int gx, int gy, int w, int h, int x, int y,
 **  @param surface target surface
 */
 void CGraphic::DrawSubClip(int gx, int gy, int w, int h, int x, int y,
-						   SDL_Surface *surface /*= TheScreen*/) const
-{
+						   SDL_Surface *surface /*= TheScreen*/) const {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawSubClip", File.u8string().c_str()); return; }
 	Assert(surface);
 
 	int oldx = x;
@@ -178,9 +178,8 @@ void CGraphic::DrawSubClip(int gx, int gy, int w, int h, int x, int y,
 **  @param surface target surface
 */
 void CGraphic::DrawSubTrans(int gx, int gy, int w, int h, int x, int y,
-							unsigned char alpha,
-							SDL_Surface *surface /*= TheScreen*/) const
-{
+							unsigned char alpha, SDL_Surface *surface /*= TheScreen*/) const {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawSubTrans", File.u8string().c_str()); return; }
 	Assert(surface);
 
 	Uint8 oldalpha = 0xff;
@@ -247,8 +246,8 @@ void CGraphic::DrawSubClipCustomMod(int gx, int gy, int w, int h, int x, int y,
 **  @param surface target surface
 */
 void CGraphic::DrawFrame(unsigned frame, int x, int y,
-						 SDL_Surface *surface /*= TheScreen*/) const
-{
+						 SDL_Surface *surface /*= TheScreen*/) const {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrame", File.u8string().c_str()); return; }
 	DrawSub(frame_map[frame].x, frame_map[frame].y,
 			Width, Height, x, y, surface);
 }
@@ -633,20 +632,20 @@ void CGraphic::Load(bool grayscale)
 	auto fp = std::make_unique<CFile>();
 	const fs::path name = LibraryFileName(File.string());
 	if (name.empty()) {
-		perror("Cannot find file");
-		ErrorPrint("Can't load the graphic '%s'\n", File.u8string().c_str());
-		ExitFatal(-1);
+		DUSTY_LOG("asset", "warn", "[asset-missing] path=%s requested=%dx%d kind=graphic reason=file-missing caller=graphic.cpp:Load",
+		          File.u8string().c_str(), Width, Height);
+		return;
 	}
 	if (fp->open(name.string().c_str(), CL_OPEN_READ) == -1) {
-		perror("Can't open file");
-		ErrorPrint("Can't load the graphic '%s'\n", File.u8string().c_str());
-		ExitFatal(-1);
+		DUSTY_LOG("asset", "warn", "[asset-missing] path=%s requested=%dx%d kind=graphic reason=open-fail caller=graphic.cpp:Load",
+		          File.u8string().c_str(), Width, Height);
+		return;
 	}
 	mSurface = IMG_Load_RW(CFile::to_SDL_RWops(std::move(fp)), 1);
 	if (mSurface == nullptr) {
-		ErrorPrint("Couldn't load file '%s': %s", name.u8string().c_str(), IMG_GetError());
-		ErrorPrint("Can't load the graphic '%s'\n", File.u8string().c_str());
-		ExitFatal(-1);
+		DUSTY_LOG("asset", "warn", "[asset-missing] path=%s requested=%dx%d kind=graphic reason=decode-fail caller=graphic.cpp:Load",
+		          File.u8string().c_str(), Width, Height);
+		return;
 	}
 
 	OriginWidth = mSurface->w;
@@ -663,18 +662,17 @@ void CGraphic::Load(bool grayscale)
 		Height = GetGraphicHeight();
 	}
 
-	if (Width > GetGraphicWidth() || Height > GetGraphicHeight()
-	    || GetGraphicWidth() % Width != 0 || GetGraphicHeight() % Height != 0) {
-		fprintf(stderr,
-		        "Graphic '%s' dimension mismatch (file %dx%d, declared %dx%d): "
-		        "treating as single-frame fallback (demo placeholder)\n",
-		        File.u8string().c_str(),
-		        GetGraphicWidth(),
-		        GetGraphicHeight(),
-		        Width,
-		        Height);
-		Width = GetGraphicWidth();
-		Height = GetGraphicHeight();
+	Assert(Width <= GetGraphicWidth() && Height <= GetGraphicHeight());
+
+	if (GetGraphicWidth() % Width != 0 || GetGraphicHeight() % Height != 0) {
+		ErrorPrint("Invalid graphic (width, height) '%s'\n"
+		           "Expected: (%d,%d)  Found: (%d,%d)\n",
+		           File.u8string().c_str(),
+		           Width,
+		           Height,
+		           GetGraphicWidth(),
+		           GetGraphicHeight());
+		ExitFatal(-1);
 	}
 
 	NumFrames = GetGraphicWidth() / Width * GetGraphicHeight() / Height;
