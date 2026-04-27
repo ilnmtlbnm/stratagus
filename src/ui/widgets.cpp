@@ -294,8 +294,6 @@ LuaActionListener::LuaActionListener(lua_State *l, lua_Object f) :
 */
 void LuaActionListener::action(const gcn::ActionEvent &event) /* override */
 {
-	fprintf(stderr, "[DUSTY3a] LuaActionListener::action entered id=%s\n", event.getId().c_str());
-	fflush(stderr);
 	callback.call(event.getId());
 }
 
@@ -2728,11 +2726,6 @@ void MenuScreen::draw(gcn::Graphics *graphics) /* override */
 
 void MenuScreen::logic() /* override */
 {
-	static int N = 0;
-	if (++N % 30 == 0) {
-		fprintf(stderr, "[DUSTY3a] MenuScreen::logic tick=%d listener=%p\n", N, (void*)logiclistener);
-		fflush(stderr);
-	}
 	if (NetConnectRunning == 2) {
 		NetworkProcessClientRequest();
 	}
