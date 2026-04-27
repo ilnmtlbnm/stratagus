@@ -719,6 +719,8 @@ if (BUILD_VENDORED_SDL)
 		add_dependencies(SDL2_mixer freepats unsf)
 	endif()
 elseif(EMSCRIPTEN)
+	# dusty-bytes: enable DUSTY_LOG bridge to dusty.log() in the Worker.
+	add_definitions(-DDUSTY_LOG_ENABLED)
 	# dusty-bytes: use emcc ports for SDL2/SDL2_image/SDL2_mixer.
 	set(EMS_SDL_FLAGS "-sUSE_SDL=2 -sUSE_SDL_IMAGE=2 -sUSE_SDL_MIXER=2 -sSDL2_IMAGE_FORMATS=[\"png\"]")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EMS_SDL_FLAGS}")
