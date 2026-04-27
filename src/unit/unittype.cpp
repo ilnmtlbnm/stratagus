@@ -52,6 +52,7 @@
 #include "ui.h"
 #include "unitsound.h"
 #include "util.h"
+#include "dusty_log.h"
 #include "video.h"
 
 #include <cctype>
@@ -888,15 +889,20 @@ void LoadUnitTypeSprite(CUnitType &type)
 	if (!type.ShadowFile.empty()) {
 		type.ShadowSprite = CGraphic::ForceNew(type.ShadowFile, type.ShadowWidth, type.ShadowHeight);
 		type.ShadowSprite->Load();
-		if (type.ShadowScale != 1) {
-			type.ShadowSprite->Resize(type.ShadowSprite->GetGraphicWidth() / type.ShadowScale,
-			                          type.ShadowSprite->GetGraphicHeight() / type.ShadowScale);
-		}
-		if (!type.ShadowSpriteFrame) {
-			if (type.Flip) {
-				type.ShadowSprite->Flip();
+		if (!type.ShadowSprite->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=unittype.cpp:LoadUnitTypeSprite kind=shadow type=%s",
+			          type.ShadowSprite->File.u8string().c_str(), type.Ident.c_str());
+		} else {
+			if (type.ShadowScale != 1) {
+				type.ShadowSprite->Resize(type.ShadowSprite->GetGraphicWidth() / type.ShadowScale,
+				                          type.ShadowSprite->GetGraphicHeight() / type.ShadowScale);
 			}
-			type.ShadowSprite->MakeShadow(type.ShadowOffset);
+			if (!type.ShadowSpriteFrame) {
+				if (type.Flip) {
+					type.ShadowSprite->Flip();
+				}
+				type.ShadowSprite->MakeShadow(type.ShadowOffset);
+			}
 		}
 	}
 
@@ -910,7 +916,10 @@ void LoadUnitTypeSprite(CUnitType &type)
 				resinfo->SpriteWhenLoaded = CPlayerColorGraphic::New(resinfo->FileWhenLoaded,
 																	 type.Width, type.Height);
 				resinfo->SpriteWhenLoaded->Load();
-				if (type.Flip) {
+				if (!resinfo->SpriteWhenLoaded->IsLoaded()) {
+					DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=unittype.cpp:LoadUnitTypeSprite kind=harvester-loaded type=%s",
+					          resinfo->SpriteWhenLoaded->File.u8string().c_str(), type.Ident.c_str());
+				} else if (type.Flip) {
 					resinfo->SpriteWhenLoaded->Flip();
 				}
 			}
@@ -918,7 +927,10 @@ void LoadUnitTypeSprite(CUnitType &type)
 				resinfo->SpriteWhenEmpty = CPlayerColorGraphic::New(resinfo->FileWhenEmpty,
 																	type.Width, type.Height);
 				resinfo->SpriteWhenEmpty->Load();
-				if (type.Flip) {
+				if (!resinfo->SpriteWhenEmpty->IsLoaded()) {
+					DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=unittype.cpp:LoadUnitTypeSprite kind=harvester-empty type=%s",
+					          resinfo->SpriteWhenEmpty->File.u8string().c_str(), type.Ident.c_str());
+				} else if (type.Flip) {
 					resinfo->SpriteWhenEmpty->Flip();
 				}
 			}
@@ -928,7 +940,10 @@ void LoadUnitTypeSprite(CUnitType &type)
 	if (!type.File.empty()) {
 		type.Sprite = CPlayerColorGraphic::New(type.File, type.Width, type.Height);
 		type.Sprite->Load();
-		if (type.Flip) {
+		if (!type.Sprite->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=unittype.cpp:LoadUnitTypeSprite kind=sprite type=%s",
+			          type.Sprite->File.u8string().c_str(), type.Ident.c_str());
+		} else if (type.Flip) {
 			type.Sprite->Flip();
 		}
 	}
@@ -936,7 +951,10 @@ void LoadUnitTypeSprite(CUnitType &type)
 	if (!type.AltFile.empty()) {
 		type.AltSprite = CPlayerColorGraphic::New(type.AltFile, type.Width, type.Height);
 		type.AltSprite->Load();
-		if (type.Flip) {
+		if (!type.AltSprite->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=unittype.cpp:LoadUnitTypeSprite kind=alt-sprite type=%s",
+			          type.AltSprite->File.u8string().c_str(), type.Ident.c_str());
+		} else if (type.Flip) {
 			type.AltSprite->Flip();
 		}
 	}

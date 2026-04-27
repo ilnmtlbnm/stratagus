@@ -42,6 +42,7 @@
 
 #include "script.h"
 #include "translate.h"
+#include "dusty_log.h"
 #include "ui.h"
 #include "video.h"
 
@@ -91,7 +92,12 @@ void CConstruction::Load(bool force)
 		ShowLoadProgress(_("Construction %s"), file.c_str());
 		this->Sprite = CPlayerColorGraphic::New(file, this->Width, this->Height);
 		this->Sprite->Load();
-		this->Sprite->Flip();
+		if (!this->Sprite->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=construct.cpp:Load kind=construction",
+			          this->Sprite->File.u8string().c_str());
+		} else {
+			this->Sprite->Flip();
+		}
 	}
 	file = this->ShadowFile.File;
 	this->ShadowWidth = this->ShadowFile.Width;
@@ -100,8 +106,13 @@ void CConstruction::Load(bool force)
 		ShowLoadProgress(_("Construction %s"), file.c_str());
 		this->ShadowSprite = CGraphic::ForceNew(file, this->ShadowWidth, this->ShadowHeight);
 		this->ShadowSprite->Load();
-		this->ShadowSprite->Flip();
-		this->ShadowSprite->MakeShadow({0, 0}); // FIXME: TODO: (timfel): construction shadows don't have X offset, so no shear?
+		if (!this->ShadowSprite->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=construct.cpp:Load kind=construction-shadow",
+			          this->ShadowSprite->File.u8string().c_str());
+		} else {
+			this->ShadowSprite->Flip();
+			this->ShadowSprite->MakeShadow({0, 0}); // FIXME: TODO: (timfel): construction shadows don't have X offset, so no shear?
+		}
 	}
 }
 

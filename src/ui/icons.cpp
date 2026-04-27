@@ -42,6 +42,7 @@
 #include "translate.h"
 #include "ui.h"
 #include "unit.h"
+#include "dusty_log.h"
 #include "video.h"
 
 #include <map>
@@ -104,6 +105,11 @@ void CIcon::Load()
 {
 	Assert(G);
 	G->Load();
+	if (!G->IsLoaded()) {
+		DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=icons.cpp:Load kind=icon ident=%s",
+		          G->File.u8string().c_str(), Ident.c_str());
+		return;
+	}
 	if (Preference.GrayscaleIcons) {
 		GScale = G->Clone(true);
 	}
@@ -113,18 +119,33 @@ void CIcon::Load()
 	}
 	for (auto g : this->SingleSelectionG) {
 		g->Load();
+		if (!g->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=icons.cpp:Load kind=icon-single-sel ident=%s",
+			          g->File.u8string().c_str(), Ident.c_str());
+			continue;
+		}
 		if (Frame >= G->NumFrames) {
 			DebugPrint("Invalid icon frame for single selection graphic: %s - %d\n", Ident.c_str(), Frame);
 		}
 	}
 	for (auto g : this->GroupSelectionG) {
 		g->Load();
+		if (!g->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=icons.cpp:Load kind=icon-group-sel ident=%s",
+			          g->File.u8string().c_str(), Ident.c_str());
+			continue;
+		}
 		if (Frame >= G->NumFrames) {
 			DebugPrint("Invalid icon frame for group selection graphic: %s - %d\n", Ident.c_str(), Frame);
 		}
 	}
 	for (auto g : this->ContainedG) {
 		g->Load();
+		if (!g->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=icons.cpp:Load kind=icon-contained ident=%s",
+			          g->File.u8string().c_str(), Ident.c_str());
+			continue;
+		}
 		if (Frame >= G->NumFrames) {
 			DebugPrint("Invalid icon frame for transport selection graphic: %s - %d\n", Ident.c_str(), Frame);
 		}

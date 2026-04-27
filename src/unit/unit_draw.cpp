@@ -58,6 +58,7 @@
 #include "unitsound.h"
 #include "unittype.h"
 #include "ui.h"
+#include "dusty_log.h"
 #include "video.h"
 
 /*----------------------------------------------------------------------------
@@ -380,6 +381,10 @@ void LoadDecorations()
 		ShowLoadProgress(_("Decorations '%s'"), deco.File.c_str());
 		deco.Sprite = CGraphic::New(deco.File, deco.Width, deco.Height);
 		deco.Sprite->Load();
+		if (!deco.Sprite->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=unit_draw.cpp:LoadDecorations kind=decoration",
+			          deco.Sprite->File.u8string().c_str());
+		}
 	}
 }
 

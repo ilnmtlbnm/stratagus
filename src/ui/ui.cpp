@@ -47,6 +47,7 @@
 #include "ui/contenttype.h"
 #include "ui/popup.h"
 #include "unit.h"
+#include "dusty_log.h"
 #include "video.h"
 
 #include <cstdarg>
@@ -228,24 +229,48 @@ void CUserInterface::Load()
 	for (int i = 0; i <= FreeWorkersCount; ++i) {
 		if (Resources[i].G) {
 			Resources[i].G->Load();
+			if (!Resources[i].G->IsLoaded()) {
+				DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=ui.cpp:Load kind=ui-resource",
+				          Resources[i].G->File.u8string().c_str());
+			}
 		}
 	}
 
 	if (InfoPanel.G) {
 		InfoPanel.G->Load();
+		if (!InfoPanel.G->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=ui.cpp:Load kind=ui-info-panel",
+			          InfoPanel.G->File.u8string().c_str());
+		}
 	}
 	if (ButtonPanel.G) {
 		ButtonPanel.G->Load();
+		if (!ButtonPanel.G->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=ui.cpp:Load kind=ui-button-panel",
+			          ButtonPanel.G->File.u8string().c_str());
+		}
 	}
 	if (PieMenu.G) {
 		PieMenu.G->Load();
+		if (!PieMenu.G->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=ui.cpp:Load kind=ui-pie-menu",
+			          PieMenu.G->File.u8string().c_str());
+		}
 	}
 
 	if (Preference.IconFrameG) {
 		Preference.IconFrameG->Load();
+		if (!Preference.IconFrameG->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=ui.cpp:Load kind=ui-icon-frame",
+			          Preference.IconFrameG->File.u8string().c_str());
+		}
 	}
 	if (Preference.PressedIconFrameG) {
 		Preference.PressedIconFrameG->Load();
+		if (!Preference.PressedIconFrameG->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=ui.cpp:Load kind=ui-pressed-icon-frame",
+			          Preference.PressedIconFrameG->File.u8string().c_str());
+		}
 	}
 
 	//  Resolve cursors

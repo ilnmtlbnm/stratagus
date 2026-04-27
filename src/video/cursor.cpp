@@ -37,6 +37,7 @@
 #include "stratagus.h"
 
 #include "cursor.h"
+#include "dusty_log.h"
 #include "intern_video.h"
 
 #include "editor.h"
@@ -101,6 +102,11 @@ SDL_Cursor *CCursor::GetSDLCursor()
 		// slow path
 		for (unsigned int i = SdlCursors.size(); i <= SpriteFrame; i++) {
 			G->Load();
+			if (!G->IsLoaded()) {
+				DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=cursor.cpp:GetSDLCursor kind=cursor",
+				          G->File.u8string().c_str());
+				return nullptr;
+			}
 			int ww, wh;
 			SDL_GetWindowSize(TheWindow, &ww, &wh);
 
@@ -168,6 +174,11 @@ void LoadCursors(const std::string &race)
 		if (cursor.G && !cursor.G->IsLoaded()) {
 			ShowLoadProgress(_("Cursor %s"), cursor.G->File.c_str());
 			cursor.G->Load();
+			if (!cursor.G->IsLoaded()) {
+				DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=cursor.cpp:LoadCursors kind=cursor",
+				          cursor.G->File.u8string().c_str());
+				continue;
+			}
 		}
 	}
 }
@@ -367,6 +378,11 @@ void DrawCursor()
 
 		if (!GameCursor->G->IsLoaded()) {
 			GameCursor->G->Load();
+			if (!GameCursor->G->IsLoaded()) {
+				DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=cursor.cpp:DrawCursor kind=cursor",
+				          GameCursor->G->File.u8string().c_str());
+				return;
+			}
 		}
 		GameCursor->G->DrawFrameClip(GameCursor->SpriteFrame, pos.x, pos.y);
 	} else {
@@ -374,6 +390,11 @@ void DrawCursor()
 		if (ActuallyVisibleGameCursor != GameCursor || GameCursor->SpriteFrame != VisibleGameCursorFrame) {
 			if (!GameCursor->G->IsLoaded()) {
 				GameCursor->G->Load();
+				if (!GameCursor->G->IsLoaded()) {
+					DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=cursor.cpp:DrawCursor(hw) kind=cursor",
+					          GameCursor->G->File.u8string().c_str());
+					return;
+				}
 			}
 			SDL_SetCursor(GameCursor->GetSDLCursor());
 			ActuallyVisibleGameCursor = GameCursor;

@@ -37,6 +37,7 @@
 
 #include "font.h"
 
+#include "dusty_log.h"
 #include "intern_video.h"
 #include "video.h"
 
@@ -144,6 +145,7 @@ void CFont::drawString(
 	gcn::Graphics *graphics, const std::string &txt, int x, int y, bool /*enabled*/) /* override */
 {
 	DynamicLoad();
+	if (!G || !G->IsLoaded()) { return; }
 	const gcn::ClipRectangle &r = graphics->getCurrentClipArea();
 	int right = std::min<int>(r.x + r.width - 1, Video.Width - 1);
 	int bottom = std::min<int>(r.y + r.height - 1, Video.Height - 1);
@@ -403,6 +405,7 @@ static int CodepageIndexFromUTF8(std::string_view text, size_t &pos, size_t &sub
 int CFont::Height() const
 {
 	DynamicLoad();
+	if (!G || !G->IsLoaded()) { return 0; }
 	return G->Height;
 }
 
@@ -422,6 +425,7 @@ bool CFont::IsLoaded() const
 int CFont::Width(const int number) const
 {
 	DynamicLoad();
+	if (!G || !G->IsLoaded() || this->CharWidth.empty()) { return 0; }
 
 	const auto s = FormatNumber(number);
 	int width = 0;
@@ -450,6 +454,7 @@ int CFont::Width(std::string_view text) const
 	size_t subpos = 0;
 
 	DynamicLoad();
+	if (!G || !G->IsLoaded() || this->CharWidth.empty()) { return 0; }
 	while ((utf8 = CodepageIndexFromUTF8(text, pos, subpos))) {
 		if (utf8 == '~' && !subpos) {
 			if (text[pos] == '|') {
@@ -590,6 +595,7 @@ int CLabel::DoDrawText(int x, int y, std::string_view text, const CFontColor *fc
 	bool isColor = false;
 	font->DynamicLoad();
 	auto g = font->GetGraphic();
+	if (!g || !g->IsLoaded()) { return 0; }
 
 	while (int utf8 = CodepageIndexFromUTF8(text.data(), text.size(), pos, subpos)) {
 		bool tab = false;
@@ -818,6 +824,7 @@ std::string_view GetLineFont(unsigned int line, std::string_view s, unsigned int
 */
 void CFont::MeasureWidths()
 {
+	if (!G || !G->IsLoaded()) { return; }
 	const int maxy = G->NumFrames;
 
 	CharWidth.resize(maxy);
@@ -866,6 +873,11 @@ void CFont::Load()
 
 	if (this->G) {
 		this->G->Load();
+		if (!this->G->IsLoaded()) {
+			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=font.cpp:Load kind=font",
+			          this->G->File.u8string().c_str());
+			return;
+		}
 		this->MeasureWidths();
 	}
 }
@@ -873,6 +885,9 @@ void CFont::Load()
 void CFont::DynamicLoad() const
 {
 	const_cast<CFont *>(this)->Load();
+	if (!this->G || !this->G->IsLoaded()) {
+		return;
+	}
 	if (this->CharWidth.empty()) {
 		const_cast<CFont *>(this)->MeasureWidths();
 	}
