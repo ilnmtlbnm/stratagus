@@ -292,8 +292,11 @@ LuaActionListener::LuaActionListener(lua_State *l, lua_Object f) :
 **
 **  @param eventId  the identifier of the Widget
 */
+volatile unsigned dustyLuaActionTag;
+__attribute__((noinline,used))
 void LuaActionListener::action(const gcn::ActionEvent &event) /* override */
 {
+	dustyLuaActionTag = 0x60; (void)dustyLuaActionTag;
 	callback.call(event.getId());
 }
 
