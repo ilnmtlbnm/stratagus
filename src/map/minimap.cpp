@@ -46,6 +46,7 @@
 #include "ui.h"
 #include "unittype.h"
 #include "video.h"
+#include "dusty_log.h"
 
 #include <vector>
 
@@ -457,6 +458,12 @@ void CMinimap::Draw() const
 */
 Vec2i CMinimap::ScreenToTilePos(const PixelPos &screenPos) const
 {
+	// dusty-bytes: guard div-by-zero when minimap scale uninitialised (pre-map-load click)
+	if (MinimapScaleX == 0 || MinimapScaleY == 0) {
+		DUSTY_LOG("hud", "warn", "[divzero] ScreenToTilePos: MinimapScale=%d,%d — returning origin",
+			MinimapScaleX, MinimapScaleY);
+		return Vec2i(0, 0);
+	}
 	Vec2i tilePos((((screenPos.x - X - XOffset) * MINIMAP_FAC) / MinimapScaleX),
 				  (((screenPos.y - Y - YOffset) * MINIMAP_FAC) / MinimapScaleY));
 
