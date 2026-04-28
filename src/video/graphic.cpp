@@ -263,6 +263,7 @@ void CGraphic::DrawFrame(unsigned frame, int x, int y,
 void CGraphic::DrawFrameClip(unsigned frame, int x, int y,
 							 SDL_Surface *surface /*= TheScreen*/) const
 {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameClip", File.u8string().c_str()); return; }
 	DrawSubClip(frame_map[frame].x, frame_map[frame].y,
 				Width, Height, x, y, surface);
 }
@@ -270,6 +271,7 @@ void CGraphic::DrawFrameClip(unsigned frame, int x, int y,
 void CGraphic::DrawFrameTrans(unsigned frame, int x, int y, int alpha,
 							  SDL_Surface *surface /*= TheScreen*/) const
 {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameTrans", File.u8string().c_str()); return; }
 	DrawSubTrans(frame_map[frame].x, frame_map[frame].y,
 				 Width, Height, x, y, alpha, surface);
 }
@@ -277,6 +279,7 @@ void CGraphic::DrawFrameTrans(unsigned frame, int x, int y, int alpha,
 void CGraphic::DrawFrameClipTrans(unsigned frame, int x, int y, int alpha,
 								  SDL_Surface *surface /* = TheScreen*/) const
 {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameClipTrans", File.u8string().c_str()); return; }
 	DrawSubClipTrans(frame_map[frame].x, frame_map[frame].y,
 					 Width, Height, x, y, alpha, surface);
 }
@@ -286,6 +289,7 @@ void CGraphic::DrawFrameClipCustomMod(unsigned frame, int x, int y,
 									  const uint32_t param,
 									  SDL_Surface *surface /* = TheScreen*/) const
 {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameClipCustomMod", File.u8string().c_str()); return; }
 	DrawSubClipCustomMod(frame_map[frame].x, frame_map[frame].y,
 						 Width, Height, x, y, modifier, param, surface);
 }
@@ -303,6 +307,7 @@ void CPlayerColorGraphic::DrawPlayerColorFrameClip(int colorIndex, unsigned fram
 												   int x, int y,
 												   SDL_Surface *surface /*= TheScreen*/)
 {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawPlayerColorFrameClip", File.u8string().c_str()); return; }
 	GraphicPlayerPixels(colorIndex, *this);
 	DrawFrameClip(frame, x, y, surface);
 }
@@ -318,6 +323,7 @@ void CPlayerColorGraphic::DrawPlayerColorFrameClip(int colorIndex, unsigned fram
 void CGraphic::DrawFrameX(unsigned frame, int x, int y,
 						  SDL_Surface *surface /*= TheScreen*/) const
 {
+	if (!SurfaceFlip) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameX", File.u8string().c_str()); return; }
 	SDL_Rect srect = {frameFlip_map[frame].x, frameFlip_map[frame].y, Uint16(Width), Uint16(Height)};
 	SDL_Rect drect = {Sint16(x), Sint16(y), 0, 0};
 
@@ -335,6 +341,7 @@ void CGraphic::DrawFrameX(unsigned frame, int x, int y,
 void CGraphic::DrawFrameClipX(unsigned frame, int x, int y,
 							  SDL_Surface *surface /*= TheScreen*/) const
 {
+	if (!SurfaceFlip) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameClipX", File.u8string().c_str()); return; }
 	SDL_Rect srect = {frameFlip_map[frame].x, frameFlip_map[frame].y, Uint16(Width), Uint16(Height)};
 
 	const int oldx = x;
@@ -351,6 +358,7 @@ void CGraphic::DrawFrameClipX(unsigned frame, int x, int y,
 void CGraphic::DrawFrameTransX(unsigned frame, int x, int y, int alpha,
 							   SDL_Surface *surface /*= TheScreen*/) const
 {
+	if (!SurfaceFlip) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameTransX", File.u8string().c_str()); return; }
 	SDL_Rect srect = {frameFlip_map[frame].x, frameFlip_map[frame].y, Uint16(Width), Uint16(Height)};
 	SDL_Rect drect = {Sint16(x), Sint16(y), 0, 0};
 	Uint8 oldalpha = 0xff;
@@ -364,6 +372,7 @@ void CGraphic::DrawFrameTransX(unsigned frame, int x, int y, int alpha,
 void CGraphic::DrawFrameClipTransX(unsigned frame, int x, int y, int alpha,
 								   SDL_Surface *surface /*= TheScreen*/) const
 {
+	if (!SurfaceFlip) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameClipTransX", File.u8string().c_str()); return; }
 	SDL_Rect srect = {frameFlip_map[frame].x, frameFlip_map[frame].y, Uint16(Width), Uint16(Height)};
 
 	int oldx = x;
@@ -394,6 +403,7 @@ void CPlayerColorGraphic::DrawPlayerColorFrameClipX(int colorIndex, unsigned fra
 													int x, int y,
 													SDL_Surface *surface /*= TheScreen*/)
 {
+	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawPlayerColorFrameClipX", File.u8string().c_str()); return; }
 	GraphicPlayerPixels(colorIndex, *this);
 	DrawFrameClipX(frame, x, y, surface);
 }
