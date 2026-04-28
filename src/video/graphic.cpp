@@ -782,6 +782,10 @@ void CGraphic::Flip()
 void CGraphic::Resize(int w, int h)
 {
 	Assert(mSurface); // can't resize before it's been loaded
+	if (!Width || !Height) { // guard: Width/Height unset; would div-by-zero at line 900-901
+		DUSTY_LOG("asset", "warn", "[divzero] Resize path=%s w=%d h=%d Width=%d Height=%d skipping", File.u8string().c_str(), w, h, Width, Height);
+		return;
+	}
 
 	if (GetGraphicWidth() == w && GetGraphicHeight() == h) {
 		return;
