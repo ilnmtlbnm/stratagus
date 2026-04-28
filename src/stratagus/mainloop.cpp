@@ -51,6 +51,7 @@
 #include "trigger.h"
 #include "ui.h"
 #include "unit.h"
+#include "dusty_log.h"
 #include "video.h"
 #include "parameters.h"
 
@@ -201,6 +202,10 @@ void UpdateDisplay()
 
 		if (!BigMapMode) {
 			for (auto &filler : UI.Fillers) {
+				if (!filler.G || !filler.G->IsLoaded()) {
+					DUSTY_LOG("hud", "warn", "[null-filler] filler at (%d,%d) has no surface — skipping draw", filler.X, filler.Y);
+					continue;
+				}
 				filler.G->DrawSubClip(0, 0, filler.G->Width, filler.G->Height, filler.X, filler.Y);
 			}
 			DrawMenuButtonArea();
