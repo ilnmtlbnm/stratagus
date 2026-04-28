@@ -82,6 +82,7 @@
 
 #include "stratagus.h"
 
+#include "dusty_log.h"
 #include "video.h"
 #include "intern_video.h"
 
@@ -536,9 +537,12 @@ void ColorCycle()
 		for (SDL_Surface *surface : colorCycling.PaletteList) {
 			ColorCycleSurface(*surface);
 		}
-	} else if (Map.TileGraphic->getSurface()->format->BytesPerPixel == 1) {
+	} else if (Map.TileGraphic && Map.TileGraphic->IsLoaded()
+	           && Map.TileGraphic->getSurface()->format->BytesPerPixel == 1) {
 		++colorCycling.cycleCount;
 		ColorCycleSurface(*Map.TileGraphic->getSurface());
+	} else if (!Map.TileGraphic || !Map.TileGraphic->IsLoaded()) {
+		DUSTY_LOG("asset", "warn", "[asset-skip] TileGraphic not loaded — skipping ColorCycle");
 	}
 }
 
@@ -549,7 +553,8 @@ void RestoreColorCyclingSurface()
 		for (SDL_Surface *surface : colorCycling.PaletteList) {
 			ColorCycleSurface_Reverse(*surface, colorCycling.cycleCount);
 		}
-	} else if (Map.TileGraphic->getSurface()->format->BytesPerPixel == 1) {
+	} else if (Map.TileGraphic && Map.TileGraphic->IsLoaded()
+	           && Map.TileGraphic->getSurface()->format->BytesPerPixel == 1) {
 		ColorCycleSurface_Reverse(*Map.TileGraphic->getSurface(), colorCycling.cycleCount);
 	}
 	colorCycling.cycleCount = 0;
