@@ -449,7 +449,7 @@ public:
 	bool ShowReactionRange = false;    /// Show reaction range.
 	bool ShowAttackRange = false;      /// Show attack range.
 	bool ShowMessages = true;          /// Show messages.
-	bool ShowNoSelectionStats = true;  /// Show stats when no selection is active
+	bool ShowNoSelectionStats = false; /// Show stats when no selection is active (dusty-bytes: off — debug overlay clutter)
 	bool BigScreen = false;            /// If true, shows the big screen(without panels)
 	bool PauseOnLeave = true;          /// If true, game pauses when cursor is gone
 	bool GrayscaleIcons = false;       /// Use grayscaled icons for unavailable units, upgrades, etc
