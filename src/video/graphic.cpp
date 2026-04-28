@@ -675,6 +675,7 @@ void CGraphic::Load(bool grayscale)
 	if (Width > GetGraphicWidth() || Height > GetGraphicHeight()) {
 		DUSTY_LOG("asset", "warn", "[asset-missing] path=%s requested=%dx%d found=%dx%d kind=graphic reason=dimension-too-small caller=graphic.cpp:Load",
 		          File.u8string().c_str(), Width, Height, GetGraphicWidth(), GetGraphicHeight());
+		VideoPaletteListRemove(mSurface);  // dusty-bytes: remove from PaletteList before SDL_FreeSurface
 		SDL_FreeSurface(mSurface);
 		mSurface = nullptr;
 		return;
@@ -683,6 +684,7 @@ void CGraphic::Load(bool grayscale)
 	if (GetGraphicWidth() % Width != 0 || GetGraphicHeight() % Height != 0) {
 		DUSTY_LOG("asset", "warn", "[asset-missing] path=%s requested=%dx%d found=%dx%d kind=graphic reason=dimension-not-divisible caller=graphic.cpp:Load",
 		          File.u8string().c_str(), Width, Height, GetGraphicWidth(), GetGraphicHeight());
+		VideoPaletteListRemove(mSurface);  // dusty-bytes: remove from PaletteList before SDL_FreeSurface
 		SDL_FreeSurface(mSurface);
 		mSurface = nullptr;
 		return;

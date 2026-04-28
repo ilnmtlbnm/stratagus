@@ -342,6 +342,7 @@ static void GameLogicLoop()
 
 static void DisplayLoop()
 {
+	DUSTY_LOG("asset", "warn", "[probe] DisplayLoop enter GameCycle=%d", (int)GameCycle);
 	/* update only if viewmode changed */
 	CheckViewportMode();
 
@@ -359,6 +360,7 @@ static void DisplayLoop()
 	//
 	DoScrollArea(MouseScrollState | KeyScrollState, (KeyModifiers & ModifierControl) != 0, MouseScrollState == 0 && KeyScrollState > 0);
 
+	DUSTY_LOG("asset", "warn", "[probe] pre-ColorCycle GameCycle=%d", (int)GameCycle);
 	ColorCycle();
 
 	if (FastForwardCycle <= GameCycle || GameCycle <= 10 || !(GameCycle & CallPeriod::cEvery256th)) {
@@ -366,11 +368,14 @@ static void DisplayLoop()
 		// program, as we now still have a game on the background and
 		// need to go through the game-menu or supply a map file
 
+		DUSTY_LOG("asset", "warn", "[probe] pre-FogOfWar-Update GameCycle=%d", (int)GameCycle);
 		FogOfWar->Update(FastForwardCycle > GameCycle);
-
+		DUSTY_LOG("asset", "warn", "[probe] pre-UpdateDisplay GameCycle=%d", (int)GameCycle);
 		UpdateDisplay();
+		DUSTY_LOG("asset", "warn", "[probe] pre-RealizeVideoMemory GameCycle=%d", (int)GameCycle);
 		RealizeVideoMemory();
 	}
+	DUSTY_LOG("asset", "warn", "[probe] DisplayLoop exit GameCycle=%d", (int)GameCycle);
 }
 
 static void SingleGameLoop()

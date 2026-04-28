@@ -35,6 +35,7 @@
 ----------------------------------------------------------------------------*/
 
 #include "stratagus.h"
+#include "dusty_log.h"
 
 #include "game.h"
 
@@ -1000,23 +1001,28 @@ void CreateGame(const fs::path &filename, CMap *map)
 	//
 	// Upgrades
 	//
+	DUSTY_LOG("asset", "warn", "[probe] post-PlayersInitAi");
 	InitUpgrades();
 
 	//
 	// Dependencies
 	//
+	DUSTY_LOG("asset", "warn", "[probe] post-InitUpgrades");
 	InitDependencies();
 
 	//
 	// Buttons (botpanel)
 	//
+	DUSTY_LOG("asset", "warn", "[probe] post-InitDependencies");
 	InitButtons();
 
 	//
 	// Triggers
 	//
+	DUSTY_LOG("asset", "warn", "[probe] post-InitButtons");
 	InitTriggers();
 
+	DUSTY_LOG("asset", "warn", "[probe] post-InitTriggers");
 	SetDefaultTextColors(UI.NormalFontColor, UI.ReverseFontColor);
 
 #if 0
@@ -1024,26 +1030,31 @@ void CreateGame(const fs::path &filename, CMap *map)
 		UI.SelectedViewport = UI.Viewports;
 	}
 #endif
+	DUSTY_LOG("asset", "warn", "[probe] pre-SelectedViewport-Center");
 	UI.SelectedViewport->Center(Map.TilePosToMapPixelPos_Center(ThisPlayer->StartPos));
 
 	//
 	// Various hacks which must be done after the map is loaded.
 	//
 	// FIXME: must be done after map is loaded
+	DUSTY_LOG("asset", "warn", "[probe] pre-InitPathfinder");
 	InitPathfinder();
 	//
 	// FIXME: The palette is loaded after the units are created.
 	// FIXME: This loops fixes the colors of the units.
 	//
+	DUSTY_LOG("asset", "warn", "[probe] pre-OnReady-loop");
 	for (CUnit *unit : UnitManager->GetUnits()) {
 		if (unit->Type->OnReady) {
 			unit->Type->OnReady(UnitNumber(*unit));
 		}
 	}
 
+	DUSTY_LOG("asset", "warn", "[probe] pre-GameResult");
 	GameResult = GameNoResult;
 
 	CommandLog(nullptr, nullptr, EFlushMode::On, -1, -1, nullptr, nullptr, -1);
+	DUSTY_LOG("asset", "warn", "[probe] pre-ClearScreen-final");
 	Video.ClearScreen();
 }
 
