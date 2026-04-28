@@ -662,17 +662,20 @@ void CGraphic::Load(bool grayscale)
 		Height = GetGraphicHeight();
 	}
 
-	Assert(Width <= GetGraphicWidth() && Height <= GetGraphicHeight());
+	if (Width > GetGraphicWidth() || Height > GetGraphicHeight()) {
+		DUSTY_LOG("asset", "warn", "[asset-missing] path=%s requested=%dx%d found=%dx%d kind=graphic reason=dimension-too-small caller=graphic.cpp:Load",
+		          File.u8string().c_str(), Width, Height, GetGraphicWidth(), GetGraphicHeight());
+		SDL_FreeSurface(mSurface);
+		mSurface = nullptr;
+		return;
+	}
 
 	if (GetGraphicWidth() % Width != 0 || GetGraphicHeight() % Height != 0) {
-		ErrorPrint("Invalid graphic (width, height) '%s'\n"
-		           "Expected: (%d,%d)  Found: (%d,%d)\n",
-		           File.u8string().c_str(),
-		           Width,
-		           Height,
-		           GetGraphicWidth(),
-		           GetGraphicHeight());
-		ExitFatal(-1);
+		DUSTY_LOG("asset", "warn", "[asset-missing] path=%s requested=%dx%d found=%dx%d kind=graphic reason=dimension-not-divisible caller=graphic.cpp:Load",
+		          File.u8string().c_str(), Width, Height, GetGraphicWidth(), GetGraphicHeight());
+		SDL_FreeSurface(mSurface);
+		mSurface = nullptr;
+		return;
 	}
 
 	NumFrames = GetGraphicWidth() / Width * GetGraphicHeight() / Height;
