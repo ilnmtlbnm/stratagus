@@ -741,7 +741,10 @@ void CButtonPanel::Draw()
 		//  Tutorial show command key in icons
 		//
 		std::string text;
-		if (ShowCommandKey) {
+		if (ShowCommandKey
+		    && buttons[i].Icon.Icon
+		    && buttons[i].Icon.Icon->G
+		    && buttons[i].Icon.Icon->G->IsLoaded()) {
 			if (buttons[i].Key == gcn::Key::Escape || buttons[i].Key == 27) {
 				text = "ESC";
 			} else {
