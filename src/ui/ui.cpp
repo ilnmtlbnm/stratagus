@@ -221,16 +221,13 @@ void CursorConfig::Load()
 */
 void CUserInterface::Load()
 {
-	DUSTY_LOG("asset", "warn", "[probe] UI.Load enter");
 	//  Load graphics
 	for (auto &filler : Fillers) {
-		if (filler.G) { DUSTY_LOG("asset", "warn", "[probe] UI.Load filler=%s", filler.G->File.u8string().c_str()); }
 		filler.Load();
 	}
 
 	for (int i = 0; i <= FreeWorkersCount; ++i) {
 		if (Resources[i].G) {
-			DUSTY_LOG("asset", "warn", "[probe] UI.Load resource[%d]=%s", i, Resources[i].G->File.u8string().c_str());
 			Resources[i].G->Load();
 			if (!Resources[i].G->IsLoaded()) {
 				DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=ui.cpp:Load kind=ui-resource",
@@ -240,7 +237,6 @@ void CUserInterface::Load()
 	}
 
 	if (InfoPanel.G) {
-		DUSTY_LOG("asset", "warn", "[probe] UI.Load infopanel=%s", InfoPanel.G->File.u8string().c_str());
 		InfoPanel.G->Load();
 		if (!InfoPanel.G->IsLoaded()) {
 			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=ui.cpp:Load kind=ui-info-panel",
@@ -248,7 +244,6 @@ void CUserInterface::Load()
 		}
 	}
 	if (ButtonPanel.G) {
-		DUSTY_LOG("asset", "warn", "[probe] UI.Load buttonpanel=%s", ButtonPanel.G->File.u8string().c_str());
 		ButtonPanel.G->Load();
 		if (!ButtonPanel.G->IsLoaded()) {
 			DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=ui.cpp:Load kind=ui-button-panel",
@@ -295,7 +290,6 @@ void CUserInterface::Load()
 	ArrowSW.Load();
 	ArrowS.Load();
 	ArrowSE.Load();
-	DUSTY_LOG("asset", "warn", "[probe] UI.Load exit");
 }
 
 

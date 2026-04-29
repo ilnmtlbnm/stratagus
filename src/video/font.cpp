@@ -899,7 +899,6 @@ void CFont::DynamicLoad() const
 */
 void LoadFonts()
 {
-	DUSTY_LOG("asset", "warn", "[probe] LoadFonts count=%d", (int)Fonts.size());
 	for (auto &[key, font] : Fonts) {
 		font->Load();
 	}

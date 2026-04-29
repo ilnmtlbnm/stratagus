@@ -163,7 +163,6 @@ void CCursor::Reset()
 */
 void LoadCursors(const std::string &race)
 {
-	DUSTY_LOG("asset", "warn", "[probe] LoadCursors race=%s count=%d", race.c_str(), (int)AllCursors.size());
 	for (auto &cursorPtr : AllCursors) {
 		CCursor &cursor = *cursorPtr;
 

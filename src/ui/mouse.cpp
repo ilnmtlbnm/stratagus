@@ -65,6 +65,7 @@
 #include <cctype>
 #include <guisan/actionevent.hpp>
 #include <stdexcept>
+#include "dusty_log.h"
 
 /*----------------------------------------------------------------------------
 --  Variables
@@ -1899,6 +1900,10 @@ void UIHandleButtonDown(unsigned button)
 	// Detect long left selection click
 	const bool longLeftButton = (MouseButtons & ((LeftButton << MouseHoldShift))) != 0;
 
+	DUSTY_LOG("select", "info", "[mousedown] button=%u screen=(%d,%d) IsDemoMode=%d CursorOn=%d",
+		button, CursorScreenPos.x, CursorScreenPos.y,
+		(int)IsDemoMode(), (int)CursorOn);
+
 	if (IsDemoMode()) {
 		// If we are in "demo mode", exit no matter what we click on.
 		void ActionDraw();
@@ -1975,6 +1980,8 @@ void UIHandleButtonDown(unsigned button)
 */
 void UIHandleButtonUp(unsigned button)
 {
+	DUSTY_LOG("select", "info", "[mouseup] button=%u CursorState=%d CursorOn=%d",
+		button, (int)CursorState, (int)CursorOn);
 	//
 	//  Move map.
 	//
@@ -2118,6 +2125,15 @@ void UIHandleButtonUp(unsigned button)
 				const PixelPos cursorMapPos = UI.MouseViewport->ScreenToMapPixelPos(CursorScreenPos);
 
 				unit = UnitOnScreen(cursorMapPos.x, cursorMapPos.y);
+				DUSTY_LOG("select", "info", "[select] screen=(%d,%d) tile=(%d,%d) map=(%d,%d) unit=%s",
+					CursorScreenPos.x, CursorScreenPos.y,
+					cursorTilePos.x, cursorTilePos.y,
+					cursorMapPos.x, cursorMapPos.y,
+					unit ? unit->Type->Name.c_str() : "none");
+			} else {
+				DUSTY_LOG("select", "info", "[select] screen=(%d,%d) tile=(%d,%d) not-visible",
+					CursorScreenPos.x, CursorScreenPos.y,
+					cursorTilePos.x, cursorTilePos.y);
 			}
 			if (unit) {
 				// FIXME: Not nice coded, button number hardcoded!
@@ -2150,8 +2166,11 @@ void UIHandleButtonUp(unsigned button)
 					SelectSingleUnit(*unit);
 					num = 1;
 				}
+				DUSTY_LOG("select", "info", "[select] result count=%d type=%s",
+					num, Selected.size() > 0 ? Selected[0]->Type->Name.c_str() : "none");
 			} else {
 				num = 0;
+				DUSTY_LOG("select", "info", "[select] result count=0 no-unit");
 			}
 		}
 

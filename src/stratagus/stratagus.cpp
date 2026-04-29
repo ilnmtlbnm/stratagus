@@ -287,15 +287,10 @@ void PreMenuSetup()
 	} else {
 		LoadCursors(MenuRace);
 	}
-	DUSTY_LOG("asset", "warn", "[probe] post-LoadCursors");
 
 	InitSettings();
-	DUSTY_LOG("asset", "warn", "[probe] post-InitSettings");
-
 	InitUserInterface();
-	DUSTY_LOG("asset", "warn", "[probe] post-InitUserInterface");
 	UI.Load();
-	DUSTY_LOG("asset", "warn", "[probe] post-UI.Load");
 }
 
 /**
@@ -308,12 +303,10 @@ static int MenuLoop()
 	int status;
 
 	initGuichan();
-	DUSTY_LOG("asset", "warn", "[probe] post-initGuichan");
 	InterfaceState = IfaceState::Menu;
 	//  Clear screen
 	Video.ClearScreen();
 	Invalidate();
-	DUSTY_LOG("asset", "warn", "[probe] post-ClearScreen");
 
 	ButtonUnderCursor = -1;
 	OldButtonUnderCursor = -1;
@@ -322,9 +315,7 @@ static int MenuLoop()
 
 	// FIXME delete this when switching to full guichan GUI
 	const fs::path filename = LibraryFileName("scripts/guichan.lua");
-	DUSTY_LOG("asset", "warn", "[probe] pre-LuaLoadFile guichan.lua");
 	status = LuaLoadFile(filename);
-	DUSTY_LOG("asset", "warn", "[probe] post-LuaLoadFile guichan.lua status=%d", status);
 
 	// We clean up later in Exit
 	return status;
@@ -701,6 +692,7 @@ static LONG WINAPI CreateDumpFile(EXCEPTION_POINTERS *ExceptionInfo)
 */
 int stratagusMain(int argc, char **argv)
 try {
+	DUSTY_LOG("stratagus-boot", "info", "built=%s %s", __DATE__, __TIME__);
 	for (int i = 0; i < argc; i++) {
 		OriginalArgv.push_back(std::string(argv[i]));
 	}

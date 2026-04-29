@@ -46,6 +46,7 @@
 #include "unit.h"
 #include "video.h"
 #include "widgets.h"
+#include "dusty_log.h"
 
 #include <climits>
 #include <cmath>
@@ -708,8 +709,12 @@ const EventCallback *GetCallbacks()
 void WaitEventsOneFrame()
 {
 	if (dummyRenderer) {
+		static int _logged = 0;
+		if (!_logged++) { DUSTY_LOG("select", "info", "[waitevents] dummyRenderer=1 first-call"); }
 		return;
 	}
+	static int _logged2 = 0;
+	if (!_logged2++) { DUSTY_LOG("select", "info", "[waitevents] real-renderer first-call"); }
 
 	Uint32 ticks = SDL_GetTicks();
 	if (ticks > NextFrameTicks) { // We are too slow :(
