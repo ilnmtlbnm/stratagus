@@ -561,6 +561,9 @@ static void DoRightButton_ForSelectedUnit(CUnit &unit, CUnit *dest, const Vec2i 
 
 	//  Handle resource workers.
 	if (action == EMouseAction::Harvest) {
+		DUSTY_LOG("input", "warn", "[rclick-consumed] unit=%s tile=%d,%d dest=%s",
+			unit.Type ? unit.Type->Ident.c_str() : "?", pos.x, pos.y,
+			dest && dest->Type ? dest->Type->Ident.c_str() : "none");
 		DoRightButton_Worker(unit, dest, pos, flush, acknowledged);
 		return;
 	}
