@@ -692,7 +692,7 @@ static LONG WINAPI CreateDumpFile(EXCEPTION_POINTERS *ExceptionInfo)
 */
 int stratagusMain(int argc, char **argv)
 try {
-	DUSTY_LOG("stratagus-boot", "info", "built=%s %s", __DATE__, __TIME__);
+	DUSTY_LOG("stratagus-boot", "warn", "built=%s %s", __DATE__, __TIME__);
 	for (int i = 0; i < argc; i++) {
 		OriginalArgv.push_back(std::string(argv[i]));
 	}
