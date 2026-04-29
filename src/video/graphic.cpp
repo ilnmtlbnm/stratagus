@@ -732,6 +732,10 @@ CGraphic::~CGraphic()
 */
 void CGraphic::Flip()
 {
+	if (!mSurface) {
+		DUSTY_LOG("asset", "warn", "[divzero-flip] mSurface NULL, skipping flip path=%s", File.u8string().c_str());
+		return;
+	}
 	if (SurfaceFlip) {
 		return;
 	}
