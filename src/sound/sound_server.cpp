@@ -40,6 +40,7 @@
 #include "stratagus.h"
 
 #include "sound_server.h"
+#include "dusty_log.h"
 
 #ifdef USE_FLUIDSYNTH
 #include "fluidsynth.h"
@@ -255,7 +256,7 @@ struct SoundChannel {
 
 static SoundChannel Channels[MaxChannels];
 
-static void ChannelFinished(int channel);
+void ChannelFinished(int channel);
 
 /**
 **  Check if this sound is already playing
@@ -286,7 +287,7 @@ bool UnitSoundIsPlaying(const Origin &origin)
 /**
 **  A channel is finished playing
 */
-static void ChannelFinished(int channel)
+__attribute__((noinline,used)) void ChannelFinished(int channel)
 {
 	if (channel < 0 || channel >= MaxChannels) {
 		ErrorPrint("ERROR: Out of bounds channel (how?)\n");
@@ -505,6 +506,7 @@ static int PlaySample(Mix_Chunk *sample, Origin *origin, void (*callback)(int ch
 			}
 		}
 #endif
+		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx channel-request vol=%d", sample->volume);
 		channel = Mix_PlayChannel(-1, sample, 0);
 		if (channel >= 0 && channel < MaxChannels) {
 			Channels[channel].FinishedCallback = callback;
@@ -584,6 +586,7 @@ void SetMusicFinishedCallback(void (*callback)())
 */
 int PlayMusic(const std::string &file)
 {
+	DUSTY_LOG("audio", "warn", "[dusty.audio] PlayMusic called path=%s sound=%d music=%d", file.c_str(), (int)SoundEnabled(), (int)IsMusicEnabled());
 	if (!SoundEnabled() || !IsMusicEnabled()) {
 		return -1;
 	}
@@ -596,9 +599,11 @@ int PlayMusic(const std::string &file)
 
 	Mix_Music *music = LoadMusic(file);
 	if (music) {
+		DUSTY_LOG("audio", "warn", "[dusty.audio] music path=%s", file.c_str());
 		Mix_PlayMusic(music, 0);
 		return 0;
 	} else {
+		DUSTY_LOG("audio", "warn", "[dusty.audio] music-load-fail path=%s", file.c_str());
 		ErrorPrint("Could not play '%s'\n", file.c_str());
 		return -1;
 	}
