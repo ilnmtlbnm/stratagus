@@ -292,6 +292,11 @@ LuaActionListener::LuaActionListener(lua_State *l, lua_Object f) :
 **
 **  @param eventId  the identifier of the Widget
 */
+// dusty-bytes: noinline+used so ASYNCIFY_REMOVE can target this by name.
+// LuaActionListener::action is called via vtable (invoke_vii) from MenuScreen::logic()
+// which is on the ASYNCIFY rewind path. Without ASYNCIFY_REMOVE, ASYNCIFY rewrites
+// it as viii, but the vtable slot is typed vii -> function signature mismatch trap.
+__attribute__((noinline,used))
 void LuaActionListener::action(const gcn::ActionEvent &event) /* override */
 {
 	callback.call(event.getId());
