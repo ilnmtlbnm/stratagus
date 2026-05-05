@@ -233,50 +233,55 @@ static bool External_Volume(int volume, int oldVolume) {
 }
 #elif defined(__EMSCRIPTEN__)
 #include <emscripten.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 static bool ems_music_playing = false;
 
+// dusty-bytes: External_Play reads the OGG from MEMFS via Module.FS.readFile
+// (a synchronous JS call) and hands encoded bytes to dusty.audio.playMusic.
+// Uses EM_ASM_INT — no fopen/fread so ASYNCIFY does not taint this path.
+// Returns true so PlayMusic skips Mix_PlayMusic (avoids SDL_mixer OGG trap).
+// Only handles long-form compressed music (.ogg/.opus/.mp3). SFX voice clips
+// (.wav/.snd/.acm) and MIDI fall through (return false) to SDL_mixer's
+// pre-decoded path, which is already async-clean.
+static bool has_music_ext(const std::string &s) {
+	static const char *exts[] = { ".ogg", ".opus", ".mp3", nullptr };
+	for (const char **e = exts; *e; ++e) {
+		size_t n = strlen(*e);
+		if (s.size() >= n && s.compare(s.size() - n, n, *e) == 0) return true;
+	}
+	return false;
+}
+
 static bool External_Play(const std::string &file) {
+	if (!has_music_ext(file)) {
+		return false;
+	}
 	fs::path full = LibraryFileName(file.c_str());
-	FILE *f = fopen(full.c_str(), "rb");
-	if (!f) {
-		DUSTY_LOG("audio", "warn", "[dusty.audio] external-play file-not-found path=%s", full.c_str());
-		return false;
-	}
-	fseek(f, 0, SEEK_END);
-	long size = ftell(f);
-	fseek(f, 0, SEEK_SET);
-	if (size <= 0) {
-		fclose(f);
-		return false;
-	}
-	unsigned char *bytes = (unsigned char *)malloc(size);
-	if (!bytes) {
-		fclose(f);
-		return false;
-	}
-	if ((long)fread(bytes, 1, size, f) != size) {
-		free(bytes);
-		fclose(f);
-		return false;
-	}
-	fclose(f);
-
-	// Copy bytes into a fresh Uint8Array (independent of wasm heap) and hand
-	// them to the worker-side dusty.audio.playMusic bridge.
-	EM_ASM({
-		if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.playMusic) {
-			var name = UTF8ToString($0);
-			var bytes = new Uint8Array(HEAPU8.subarray($1, $1 + $2));
-			self.dusty.audio.playMusic(name, bytes, { loop: !!$3 });
+	int ok = EM_ASM_INT({
+		try {
+			var path = UTF8ToString($0);
+			var name = UTF8ToString($1);
+			if (typeof self === 'undefined' || !self.dusty || !self.dusty.audio || !self.dusty.audio.playMusic) {
+				return 0;
+			}
+			var bytes = FS.readFile(path);
+			if (!bytes || bytes.length === 0) {
+				return 0;
+			}
+			var copy = new Uint8Array(bytes);
+			self.dusty.audio.playMusic(name, copy, { loop: true });
+			return 1;
+		} catch(e) {
+			return 0;
 		}
-	}, file.c_str(), bytes, (int)size, 1 /* loop */);
-
-	free(bytes);
-	ems_music_playing = true;
-	return true;
+	}, full.c_str(), file.c_str());
+	if (ok) {
+		ems_music_playing = true;
+		DUSTY_LOG("audio", "warn", "[dusty.audio] external-play ok path=%s", full.c_str());
+	} else {
+		DUSTY_LOG("audio", "warn", "[dusty.audio] external-play file-not-found path=%s", full.c_str());
+	}
+	return ok != 0;
 }
 
 static bool External_IsPlaying() {
