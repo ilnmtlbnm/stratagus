@@ -231,6 +231,78 @@ static bool External_Volume(int volume, int oldVolume) {
 	}
 	return false;
 }
+#elif defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static bool ems_music_playing = false;
+
+static bool External_Play(const std::string &file) {
+	fs::path full = LibraryFileName(file.c_str());
+	FILE *f = fopen(full.c_str(), "rb");
+	if (!f) {
+		DUSTY_LOG("audio", "warn", "[dusty.audio] external-play file-not-found path=%s", full.c_str());
+		return false;
+	}
+	fseek(f, 0, SEEK_END);
+	long size = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	if (size <= 0) {
+		fclose(f);
+		return false;
+	}
+	unsigned char *bytes = (unsigned char *)malloc(size);
+	if (!bytes) {
+		fclose(f);
+		return false;
+	}
+	if ((long)fread(bytes, 1, size, f) != size) {
+		free(bytes);
+		fclose(f);
+		return false;
+	}
+	fclose(f);
+
+	// Copy bytes into a fresh Uint8Array (independent of wasm heap) and hand
+	// them to the worker-side dusty.audio.playMusic bridge.
+	EM_ASM({
+		if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.playMusic) {
+			var name = UTF8ToString($0);
+			var bytes = new Uint8Array(HEAPU8.subarray($1, $1 + $2));
+			self.dusty.audio.playMusic(name, bytes, { loop: !!$3 });
+		}
+	}, file.c_str(), bytes, (int)size, 1 /* loop */);
+
+	free(bytes);
+	ems_music_playing = true;
+	return true;
+}
+
+static bool External_IsPlaying() {
+	return ems_music_playing;
+}
+
+static bool External_Stop() {
+	if (!ems_music_playing) return false;
+	EM_ASM({
+		if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.stopMusic) {
+			self.dusty.audio.stopMusic();
+		}
+	});
+	ems_music_playing = false;
+	return true;
+}
+
+static bool External_Volume(int volume, int /*oldVolume*/) {
+	EM_ASM({
+		if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.setMusicVolume) {
+			self.dusty.audio.setMusicVolume($0 / 128.0);
+		}
+	}, volume);
+	return true;
+}
+
 #else
 static bool External_Play(const std::string & /*file*/) {
 	return false;
