@@ -740,7 +740,7 @@ elseif(EMSCRIPTEN)
 	# trips a "function signature mismatch" RuntimeError. Removing async transform
 	# from these short, non-yielding callbacks keeps their signatures matching the
 	# table tag. See refactors in src/stratagus/title.cpp + src/ui/widgets.cpp.
-	set(ASYNCIFY_REMOVE_LIST "[\"MenuHandleKeyDown\",\"MenuHandleKeyUp\",\"MenuHandleKeyRepeat\",\"MenuHandleMouseMove\",\"MenuHandleButtonNoop\",\"TitleCb_ButtonPressed\",\"TitleCb_ButtonReleased\",\"TitleCb_MouseMoved\",\"TitleCb_MouseExit\",\"TitleCb_KeyPressed\",\"TitleCb_KeyReleased\",\"TitleCb_KeyRepeated\",\"HandleSoundEvent(SDL_Event&)\",\"PlaySoundFileCallback(int)\",\"MusicFinishedCallback()\",\"CheckMusicFinished(int)\",\"ChannelFinished(int)\",\"LuaActionListener::action(gcn::ActionEvent const&)\"]")
+	set(ASYNCIFY_REMOVE_LIST "[\"MenuHandleKeyDown\",\"MenuHandleKeyUp\",\"MenuHandleKeyRepeat\",\"MenuHandleMouseMove\",\"MenuHandleButtonNoop\",\"TitleCb_ButtonPressed\",\"TitleCb_ButtonReleased\",\"TitleCb_MouseMoved\",\"TitleCb_MouseExit\",\"TitleCb_KeyPressed\",\"TitleCb_KeyReleased\",\"TitleCb_KeyRepeated\",\"HandleSoundEvent(SDL_Event&)\",\"PlaySoundFileCallback(int)\",\"MusicFinishedCallback()\",\"CheckMusicFinished(int)\",\"ChannelFinished(int)\",\"LuaActionListener::action(gcn::ActionEvent const&)\",\"StopMusic()\",\"SetMusicVolume(int)\",\"IsMusicPlaying()\"]")
 	set(EMS_LINK_FLAGS "-sASYNCIFY -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sASYNCIFY_STACK_SIZE=32768 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=67108864 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -fno-lto --preload-file ${STRATAGUS_DATA_PRELOAD}")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto")

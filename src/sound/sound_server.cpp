@@ -692,7 +692,7 @@ int PlayMusic(const std::string &file)
 /**
 **  Stop the current playing music. This does not trigger the music finished callback.
 */
-void StopMusic()
+__attribute__((noinline, used)) void StopMusic()
 {
 	CallbackMusicDisable();
 	if (!External_Stop()) {
@@ -706,7 +706,7 @@ void StopMusic()
 **
 **  @param volume  the music volume 0-255
 */
-void SetMusicVolume(int volume)
+__attribute__((noinline, used)) void SetMusicVolume(int volume)
 {
 	// due to left-right separation, sound effect volume is effectively halfed,
 	// so we adjust the music
@@ -748,7 +748,7 @@ bool IsMusicEnabled()
 /**
 **  Check if music is playing
 */
-bool IsMusicPlaying()
+__attribute__((noinline, used)) bool IsMusicPlaying()
 {
 	return Mix_PlayingMusic() || External_IsPlaying();
 }
