@@ -243,16 +243,19 @@ static bool ems_music_playing = false;
 // Only handles long-form compressed music (.ogg/.opus/.mp3). SFX voice clips
 // (.wav/.snd/.acm) and MIDI fall through (return false) to SDL_mixer's
 // pre-decoded path, which is already async-clean.
-static bool has_music_ext(const std::string &s) {
-	static const char *exts[] = { ".ogg", ".opus", ".mp3", nullptr };
-	for (const char **e = exts; *e; ++e) {
-		size_t n = strlen(*e);
-		if (s.size() >= n && s.compare(s.size() - n, n, *e) == 0) return true;
-	}
-	return false;
-}
-
 static bool External_Play(const std::string &file) {
+	// Only bridge long-form compressed music. SFX voice clips (.wav/.snd/.acm)
+	// and MIDI fall through (return false) to SDL_mixer's pre-decoded path.
+	// Use a lambda so no extra wasm function-table entry is created (adding a
+	// new static function shifts ASYNCIFY's indirect-call table indices).
+	auto has_music_ext = [](const std::string &s) -> bool {
+		static const char *exts[] = { ".ogg", ".opus", ".mp3", nullptr };
+		for (const char **e = exts; *e; ++e) {
+			size_t n = strlen(*e);
+			if (s.size() >= n && s.compare(s.size() - n, n, *e) == 0) return true;
+		}
+		return false;
+	};
 	if (!has_music_ext(file)) {
 		return false;
 	}
