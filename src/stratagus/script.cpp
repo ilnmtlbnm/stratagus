@@ -2017,7 +2017,9 @@ extern int tolua_stratagus_open(lua_State *tolua_S);
 // tries to restore state from the async stack when called as a new sub-call during rewind.
 // Using a named, noinline+used function (in ASYNCIFY_REMOVE) prevents this.
 // See lstring.c + lmem.c for the same treatment on luaS_newlstr / luaM_realloc_.
-__attribute__((noinline,used))
+// extern "C" prevents C++ name-mangling so the literal string
+// "dusty_lua_alloc" in ASYNCIFY_REMOVE_LIST matches the linker symbol.
+extern "C" __attribute__((noinline,used))
 void *dusty_lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
 	(void)ud;
 	(void)osize;
