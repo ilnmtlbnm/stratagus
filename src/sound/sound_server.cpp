@@ -39,6 +39,7 @@
 
 #include "stratagus.h"
 
+#include "dusty_log.h"
 #include "sound_server.h"
 
 #ifdef USE_FLUIDSYNTH
@@ -230,6 +231,86 @@ static bool External_Volume(int volume, int oldVolume) {
 	}
 	return false;
 }
+#elif defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+
+static bool ems_music_playing = false;
+
+// dusty-bytes: External_Play reads the OGG from MEMFS via Module.FS.readFile
+// (a synchronous JS call) and hands encoded bytes to dusty.audio.playMusic.
+// Uses EM_ASM_INT — no fopen/fread so ASYNCIFY does not taint this path.
+// Returns true so PlayMusic skips Mix_PlayMusic (avoids SDL_mixer OGG trap).
+// Only handles long-form compressed music (.ogg/.opus/.mp3). SFX voice clips
+// (.wav/.snd/.acm) and MIDI fall through (return false) to SDL_mixer's
+// pre-decoded path, which is already async-clean.
+static bool External_Play(const std::string &file) {
+	// Only bridge long-form compressed music. SFX voice clips (.wav/.snd/.acm)
+	// and MIDI fall through (return false) to SDL_mixer's pre-decoded path.
+	// Use a lambda so no extra wasm function-table entry is created (adding a
+	// new static function shifts ASYNCIFY's indirect-call table indices).
+	auto has_music_ext = [](const std::string &s) -> bool {
+		static const char *exts[] = { ".ogg", ".opus", ".mp3", nullptr };
+		for (const char **e = exts; *e; ++e) {
+			size_t n = strlen(*e);
+			if (s.size() >= n && s.compare(s.size() - n, n, *e) == 0) return true;
+		}
+		return false;
+	};
+	if (!has_music_ext(file)) {
+		return false;
+	}
+	fs::path full = LibraryFileName(file.c_str());
+	int ok = EM_ASM_INT({
+		try {
+			var path = UTF8ToString($0);
+			var name = UTF8ToString($1);
+			if (typeof self === 'undefined' || !self.dusty || !self.dusty.audio || !self.dusty.audio.playMusic) {
+				return 0;
+			}
+			var bytes = FS.readFile(path);
+			if (!bytes || bytes.length === 0) {
+				return 0;
+			}
+			var copy = new Uint8Array(bytes);
+			self.dusty.audio.playMusic(name, copy, { loop: true });
+			return 1;
+		} catch(e) {
+			return 0;
+		}
+	}, full.c_str(), file.c_str());
+	if (ok) {
+		ems_music_playing = true;
+		DUSTY_LOG("audio", "warn", "[dusty.audio] external-play ok path=%s", full.c_str());
+	} else {
+		DUSTY_LOG("audio", "warn", "[dusty.audio] external-play file-not-found path=%s", full.c_str());
+	}
+	return ok != 0;
+}
+
+static bool External_IsPlaying() {
+	return ems_music_playing;
+}
+
+static bool External_Stop() {
+	if (!ems_music_playing) return false;
+	EM_ASM({
+		if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.stopMusic) {
+			self.dusty.audio.stopMusic();
+		}
+	});
+	ems_music_playing = false;
+	return true;
+}
+
+static bool External_Volume(int volume, int /*oldVolume*/) {
+	EM_ASM({
+		if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.setMusicVolume) {
+			self.dusty.audio.setMusicVolume($0 / 128.0);
+		}
+	}, volume);
+	return true;
+}
+
 #else
 static bool External_Play(const std::string & /*file*/) {
 	return false;
