@@ -37,6 +37,8 @@
 #include "stratagus.h"
 
 #include "actions.h"
+#include "dusty_log.h"
+#include "script.h"
 #include "editor.h"
 #include "fow.h"
 #include "game.h"
@@ -329,6 +331,18 @@ static void GameLogicLoop()
 
 	if (FastForwardCycle <= GameCycle || !(GameCycle & CallPeriod::cEvery256th)) {
 		WaitEventsOneFrame();
+	}
+
+	// dusty-bytes: 5-second heartbeat with Lua memory + GC + frame count so we
+	// can correlate trap timing with state growth (e.g. is Lua heap unbounded?).
+	{
+		static unsigned int s_hb_counter = 0;
+		if ((++s_hb_counter % 300) == 0) {  // ~5s at 60Hz
+			int lua_kb = Lua ? lua_gc(Lua, LUA_GCCOUNT, 0) : -1;
+			DUSTY_LOG("script", "warn",
+			          "[heartbeat] frame=%u cycle=%lu lua_kb=%d",
+			          s_hb_counter, (unsigned long)GameCycle, lua_kb);
+		}
 	}
 
 	if (!NetworkInSync) {

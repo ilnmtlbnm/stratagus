@@ -37,6 +37,7 @@
 #include "video.h"
 #include "font.h"
 #include "cursor.h"
+#include "dusty_log.h"
 #include "ui.h"
 #include "widgets.h"
 #include "network.h"
@@ -294,17 +295,20 @@ LuaActionListener::LuaActionListener(lua_State *l, lua_Object f) :
 */
 void LuaActionListener::action(const gcn::ActionEvent &event) /* override */
 {
+	DUSTY_LOG("script", "warn", "[LuaAction] id=%s", event.getId().c_str());
 	callback.call(event.getId());
 }
 
 void LuaActionListener::keyPressed(gcn::KeyEvent &event) /* override */
 {
+	DUSTY_LOG("script", "warn", "[LuaAction] keyPress key=%s", to_utf8(event.getKey().getValue()).c_str());
 	callback.call("keyPress", to_utf8(event.getKey().getValue()));
 	event.consume();
 }
 
 void LuaActionListener::keyReleased(gcn::KeyEvent &event) /* override */
 {
+	DUSTY_LOG("script", "warn", "[LuaAction] keyRelease key=%s", to_utf8(event.getKey().getValue()).c_str());
 	callback.call("keyRelease", to_utf8(event.getKey().getValue()));
 	event.consume();
 }

@@ -35,6 +35,8 @@
 
 #include "script.h"
 
+#include "dusty_log.h"
+
 #include "animation/animation_setplayervar.h"
 #include "font.h"
 #include "game.h"
@@ -240,14 +242,27 @@ static std::optional<std::string> GetFileContent(const fs::path& file)
 **
 **  @return      0 for success, -1 if the file was not found, else exit.
 */
+// dusty-bytes: track how deep we are in nested LuaLoadFile calls so the
+// observability log can correlate trap-site with the nesting at trap time.
+// Also reveals which scripts recursively `Load()` other scripts.
+static int g_luaLoadDepth = 0;
+
 int LuaLoadFile(const fs::path &file, const std::string &strArg, bool exitOnError)
 {
 	DebugPrint("Loading '%s'\n", file.u8string().c_str());
+	const int depth = ++g_luaLoadDepth;
+	DUSTY_LOG("script", "warn", "[LuaLoadFile] depth=%d enter path=%s",
+	          depth, file.u8string().c_str());
 
 	const auto content = GetFileContent(file);
 	if (!content) {
+		DUSTY_LOG("script", "warn", "[LuaLoadFile] depth=%d not-found path=%s",
+		          depth, file.u8string().c_str());
+		--g_luaLoadDepth;
 		return -1;
 	}
+	DUSTY_LOG("script", "warn", "[LuaLoadFile] depth=%d bytes=%zu path=%s",
+	          depth, content->size(), file.u8string().c_str());
 	if (file.string().rfind("stratagus.lua") != std::string::npos) {
 		FileChecksums ^= fletcher32(*content);
 		DebugPrint("FileChecksums after loading %s: %x\n", file.u8string().c_str(), FileChecksums);
@@ -271,6 +286,9 @@ int LuaLoadFile(const fs::path &file, const std::string &strArg, bool exitOnErro
 	}
 	// restore the old __file__
 	lua_setglobal(Lua, "__file__");
+	DUSTY_LOG("script", "warn", "[LuaLoadFile] depth=%d exit status=%d path=%s",
+	          depth, status, file.u8string().c_str());
+	--g_luaLoadDepth;
 	return status;
 }
 
