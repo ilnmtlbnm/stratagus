@@ -740,30 +740,16 @@ elseif(EMSCRIPTEN)
 	# trips a "function signature mismatch" RuntimeError. Removing async transform
 	# from these short, non-yielding callbacks keeps their signatures matching the
 	# table tag. See refactors in src/stratagus/title.cpp + src/ui/widgets.cpp.
-	# dusty-bytes 2026-05-17: Lua allocator chain — fixes in-game OOB trap
-	# (RuntimeError: index out of bounds at luaS_newlstr:0xe269). ASYNCIFY
-	# instruments luaS_newlstr/luaM_realloc_/luaS_resize/newlstr because they're
-	# reachable from the async call graph via Lua script execution. During
-	# ASYNCIFY rewind, the Lua VM re-runs bytecode. New allocator calls during
-	# replay enter rewind mode (global$2==2) and try to pop saved state from
-	# global$3 — already consumed by the outer rewind chain. global$3 underflows
-	# past stack bottom → i32.load from 0xFFFFFFEC → memory OOB trap.
-	# These are pure allocation functions (no yield possible), so removing them
-	# from ASYNCIFY is safe per Rule 1 of the bridge architecture.
-	# dusty_lua_alloc replaces the default static l_alloc as g->frealloc so the
-	# call_indirect inside luaM_realloc_ also lands on a non-instrumented target.
-	# See: src/stratagus/script.cpp + third-party/lua-5.1.5/src/{lstring,lmem}.c.
-	# dusty-bytes 2026-05-17 part 2: bring demo's ASYNCIFY config up to parity
+	# dusty-bytes 2026-05-17: bring demo's ASYNCIFY config up to parity
 	# with full. The audio entries (ChannelFinished, StopMusic, SetMusicVolume,
 	# IsMusicPlaying) are present on full (commits d8c4fa013, ea3853f40) NOT
 	# because those functions are unsafe to instrument, but because their
 	# presence **stabilises the ASYNCIFY state table layout** so the
 	# SDL_AudioDevice's stored callback pointer lands at the correct table slot.
-	# Without these, SDL audio fill traps with "indirect call signature mismatch"
-	# — which appeared in our oob-4 capture as the post-trap audio cascade.
+	# Without these, SDL audio fill traps with "indirect call signature mismatch".
 	# --profiling-funcs (also from full, 9eac23fca) keeps the wasm function-name
 	# section so stack traces resolve to function names instead of opaque indices.
-	set(ASYNCIFY_REMOVE_LIST "[\"MenuHandleKeyDown\",\"MenuHandleKeyUp\",\"MenuHandleKeyRepeat\",\"MenuHandleMouseMove\",\"MenuHandleButtonNoop\",\"TitleCb_ButtonPressed\",\"TitleCb_ButtonReleased\",\"TitleCb_MouseMoved\",\"TitleCb_MouseExit\",\"TitleCb_KeyPressed\",\"TitleCb_KeyReleased\",\"TitleCb_KeyRepeated\",\"HandleSoundEvent(SDL_Event&)\",\"PlaySoundFileCallback(int)\",\"MusicFinishedCallback()\",\"CheckMusicFinished(int)\",\"ChannelFinished(int)\",\"StopMusic()\",\"SetMusicVolume(int)\",\"IsMusicPlaying()\",\"luaS_newlstr\",\"luaM_realloc_\",\"luaS_resize\",\"newlstr\",\"dusty_lua_alloc\"]")
+	set(ASYNCIFY_REMOVE_LIST "[\"MenuHandleKeyDown\",\"MenuHandleKeyUp\",\"MenuHandleKeyRepeat\",\"MenuHandleMouseMove\",\"MenuHandleButtonNoop\",\"TitleCb_ButtonPressed\",\"TitleCb_ButtonReleased\",\"TitleCb_MouseMoved\",\"TitleCb_MouseExit\",\"TitleCb_KeyPressed\",\"TitleCb_KeyReleased\",\"TitleCb_KeyRepeated\",\"HandleSoundEvent(SDL_Event&)\",\"PlaySoundFileCallback(int)\",\"MusicFinishedCallback()\",\"CheckMusicFinished(int)\",\"ChannelFinished(int)\",\"StopMusic()\",\"SetMusicVolume(int)\",\"IsMusicPlaying()\"]")
 	set(EMS_LINK_FLAGS "-sASYNCIFY -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sASYNCIFY_STACK_SIZE=32768 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=67108864 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -fno-lto --profiling-funcs --preload-file ${STRATAGUS_DATA_PRELOAD}")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto")
