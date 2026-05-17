@@ -2009,6 +2009,26 @@ int CclCommand(const std::string &command, bool exitOnError)
 
 extern int tolua_stratagus_open(lua_State *tolua_S);
 
+#ifdef __EMSCRIPTEN__
+#include <cstdlib>
+// dusty-bytes: named allocator so ASYNCIFY_REMOVE can target it by name.
+// luaM_realloc_ calls the Lua allocator via call_indirect (g->frealloc).
+// If the default l_alloc (static in lauxlib.c) is ASYNCIFY-instrumented, it incorrectly
+// tries to restore state from the async stack when called as a new sub-call during rewind.
+// Using a named, noinline+used function (in ASYNCIFY_REMOVE) prevents this.
+// See lstring.c + lmem.c for the same treatment on luaS_newlstr / luaM_realloc_.
+__attribute__((noinline,used))
+void *dusty_lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
+	(void)ud;
+	(void)osize;
+	if (nsize == 0) {
+		free(ptr);
+		return nullptr;
+	}
+	return realloc(ptr, nsize);
+}
+#endif
+
 /**
 **  Initialize Lua
 */
@@ -2030,6 +2050,12 @@ void InitLua()
 	};
 
 	Lua = luaL_newstate();
+#ifdef __EMSCRIPTEN__
+	// dusty-bytes: replace default (static) l_alloc with named dusty_lua_alloc
+	// so the allocator function pointer in g->frealloc points to a function that
+	// is in ASYNCIFY_REMOVE and will not misread the async stack during rewind.
+	lua_setallocf(Lua, dusty_lua_alloc, nullptr);
+#endif
 
 	for (const luaL_Reg *lib = lualibs; lib->func; ++lib) {
 #if LUA_VERSION_NUM == 503 || LUA_VERSION_NUM == 502
