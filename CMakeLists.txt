@@ -753,8 +753,18 @@ elseif(EMSCRIPTEN)
 	# dusty_lua_alloc replaces the default static l_alloc as g->frealloc so the
 	# call_indirect inside luaM_realloc_ also lands on a non-instrumented target.
 	# See: src/stratagus/script.cpp + third-party/lua-5.1.5/src/{lstring,lmem}.c.
-	set(ASYNCIFY_REMOVE_LIST "[\"MenuHandleKeyDown\",\"MenuHandleKeyUp\",\"MenuHandleKeyRepeat\",\"MenuHandleMouseMove\",\"MenuHandleButtonNoop\",\"TitleCb_ButtonPressed\",\"TitleCb_ButtonReleased\",\"TitleCb_MouseMoved\",\"TitleCb_MouseExit\",\"TitleCb_KeyPressed\",\"TitleCb_KeyReleased\",\"TitleCb_KeyRepeated\",\"HandleSoundEvent(SDL_Event&)\",\"PlaySoundFileCallback(int)\",\"MusicFinishedCallback()\",\"CheckMusicFinished(int)\",\"luaS_newlstr\",\"luaM_realloc_\",\"luaS_resize\",\"newlstr\",\"dusty_lua_alloc\"]")
-	set(EMS_LINK_FLAGS "-sASYNCIFY -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sASYNCIFY_STACK_SIZE=32768 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=67108864 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -fno-lto --preload-file ${STRATAGUS_DATA_PRELOAD}")
+	# dusty-bytes 2026-05-17 part 2: bring demo's ASYNCIFY config up to parity
+	# with full. The audio entries (ChannelFinished, StopMusic, SetMusicVolume,
+	# IsMusicPlaying) are present on full (commits d8c4fa013, ea3853f40) NOT
+	# because those functions are unsafe to instrument, but because their
+	# presence **stabilises the ASYNCIFY state table layout** so the
+	# SDL_AudioDevice's stored callback pointer lands at the correct table slot.
+	# Without these, SDL audio fill traps with "indirect call signature mismatch"
+	# — which appeared in our oob-4 capture as the post-trap audio cascade.
+	# --profiling-funcs (also from full, 9eac23fca) keeps the wasm function-name
+	# section so stack traces resolve to function names instead of opaque indices.
+	set(ASYNCIFY_REMOVE_LIST "[\"MenuHandleKeyDown\",\"MenuHandleKeyUp\",\"MenuHandleKeyRepeat\",\"MenuHandleMouseMove\",\"MenuHandleButtonNoop\",\"TitleCb_ButtonPressed\",\"TitleCb_ButtonReleased\",\"TitleCb_MouseMoved\",\"TitleCb_MouseExit\",\"TitleCb_KeyPressed\",\"TitleCb_KeyReleased\",\"TitleCb_KeyRepeated\",\"HandleSoundEvent(SDL_Event&)\",\"PlaySoundFileCallback(int)\",\"MusicFinishedCallback()\",\"CheckMusicFinished(int)\",\"ChannelFinished(int)\",\"StopMusic()\",\"SetMusicVolume(int)\",\"IsMusicPlaying()\",\"luaS_newlstr\",\"luaM_realloc_\",\"luaS_resize\",\"newlstr\",\"dusty_lua_alloc\"]")
+	set(EMS_LINK_FLAGS "-sASYNCIFY -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sASYNCIFY_STACK_SIZE=32768 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=67108864 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -fno-lto --profiling-funcs --preload-file ${STRATAGUS_DATA_PRELOAD}")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_LINK_FLAGS}")
