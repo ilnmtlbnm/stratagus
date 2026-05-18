@@ -652,6 +652,13 @@ elseif(EMSCRIPTEN)
 	# (toluapp must run on the host, not in WASM).
 	include(ExternalProject)
 
+	# dusty-bytes: set -pthread early so that vendored_lua()'s ExternalProject_Add
+	# receives it via CMAKE_C_FLAGS. The pthread flags are also set again later in
+	# the SDL elseif(EMSCRIPTEN) block; this early set ensures the Lua sub-build
+	# inherits the atomics/bulk-memory feature that -sUSE_PTHREADS=1 requires.
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+
 	# Emcc-side: vendored lua + toluapp static libs (vendored_lua uses
 	# ExternalProject_Add which inherits the parent's toolchain/env, so
 	# these get built with emcc as desired).
