@@ -226,6 +226,11 @@ extern void beos_init(int argc, char **argv);
 #include <cstdlib>
 #include <cstdio>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <pthread.h>
+#endif
+
 #ifdef USE_WIN32
 # include <dbghelp.h>
 # include <windows.h>
@@ -267,6 +272,73 @@ bool EnableWallsInSinglePlayer {false}; /// Enables ability to build walls in th
 /*============================================================================
 ==  MAIN
 ============================================================================*/
+
+// Forward declarations of functions defined later in this file.
+static int MenuLoop();
+static void PrintHeader();
+void PrintLicense();
+void PreMenuSetup();
+
+#ifdef __EMSCRIPTEN__
+/**
+**  Engine thread entry point (Emscripten pthread mode).
+**
+**  SDL init (SDL_Init, SDL_OpenAudio / MockAudioContext, SDL_CreateWindow) runs on
+**  the Emscripten main thread in stratagusMain(), where worker-shim.js has installed
+**  mock DOM globals. This pthread runs everything that follows InitVideo(): the title
+**  screens, the guichan menu loop, and the game loop. It blocks cooperatively on
+**  SDL_Delay + SDL_PollEvent (via Atomics.wait on the SAB) instead of ASYNCIFY
+**  save/restore, eliminating the indirect-call type-tag mismatch OOB family.
+**
+**  Called after a sem_post from stratagusMain() once init is complete. The engine
+**  thread argument is a pointer to the EngineThreadArgs struct (stack-allocated in
+**  stratagusMain; lifetime is guaranteed by the sem_wait on entry).
+*/
+static void *dusty_engine_thread(void *arg __attribute__((unused)))
+try {
+	PrintHeader();
+	PrintLicense();
+
+#ifndef DEBUG
+	srand(time(nullptr));
+#endif
+
+	//  Show title screens.
+	SetDefaultTextColors(FontYellow, FontWhite);
+	LoadFonts();
+	SetClipping(0, 0, Video.Width - 1, Video.Height - 1);
+	Video.ClearScreen();
+	if (!IsRestart) {
+		ShowTitleScreens();
+	}
+
+	// Init player data
+	ThisPlayer = nullptr;
+	NumPlayers = 0;
+
+	UnitManager->Init(); // Units memory management
+	PreMenuSetup();     // Load everything needed for menus
+
+	MenuLoop();
+
+	Exit(0);
+	return nullptr;
+} catch (const std::exception &e) {
+	ErrorPrint("Stratagus engine thread crashed!\n%s", e.what());
+	exit(1);
+	return nullptr;
+} catch (const gcn::Exception &ex) {
+	ErrorPrint("Stratagus engine thread crashed in Guichan!\n%s:%d (%s): %s",
+	           ex.getFilename().c_str(), ex.getLine(),
+	           ex.getFunction().c_str(), ex.getMessage().c_str());
+	exit(1);
+	return nullptr;
+} catch (...) {
+	ErrorPrint("Stratagus engine thread crashed (unknown exception)!\n");
+	exit(1);
+	return nullptr;
+}
+#endif // __EMSCRIPTEN__
 
 /**
 **  Pre menu setup.
@@ -763,6 +835,29 @@ try {
 	// Setup video display
 	InitVideo();
 
+#ifdef __EMSCRIPTEN__
+	// dusty-bytes Phase 5: move the game loop onto a pthread so it can block
+	// on SDL_Delay + SDL_PollEvent via Atomics.wait instead of ASYNCIFY save/restore.
+	// SDL init (including SDL_OpenAudio and its EM_ASM AudioContext setup) runs on
+	// the Emscripten main thread above, where worker-shim.js mock globals are present.
+	// The engine pthread (dusty_engine_thread) runs everything from ShowTitleScreens
+	// onward. The main thread then surrenders to the JS event loop via
+	// emscripten_exit_with_live_runtime() so DOM events, SAB operations, and the
+	// audio ScriptProcessorNode keep firing.
+	// EXIT_RUNTIME=0 (in EMS_LINK_FLAGS) ensures exit() from the engine pthread
+	// terminates the runtime even though main() has returned.
+	{
+		pthread_t engine_thread;
+		int rc = pthread_create(&engine_thread, nullptr, dusty_engine_thread, nullptr);
+		if (rc != 0) {
+			ErrorPrint("stratagus: pthread_create failed: %d\n", rc);
+			exit(1);
+		}
+		pthread_detach(engine_thread);
+	}
+	emscripten_exit_with_live_runtime();
+	return 0; // unreachable; emscripten_exit_with_live_runtime does not return
+#else
 	PrintHeader();
 	PrintLicense();
 
@@ -792,6 +887,7 @@ try {
 
 	Exit(0);
 	return 0;
+#endif // __EMSCRIPTEN__
 } catch (const std::exception &e) {
 	ErrorPrint("Stratagus crashed!\n"
 		        "Please send this call stack to our bug tracker: "
