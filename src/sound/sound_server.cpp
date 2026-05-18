@@ -598,6 +598,12 @@ static int PlaySample(Mix_Chunk *sample, Origin *origin, void (*callback)(int ch
 				source->Id = origin->Id;
 				Channels[channel].Unit = std::move(source);
 			}
+#ifdef __EMSCRIPTEN__
+			// Dummy SDL audio driver never fires ChannelFinished; halt immediately
+			// so Mix_FreeChunk doesn't see stale Mix_Playing(channel)==1 later.
+			// FinishedCallback and Unit are already set above so they fire correctly.
+			Mix_HaltChannel(channel);
+#endif
 		}
 	}
 	return channel;
