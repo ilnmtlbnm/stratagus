@@ -789,6 +789,24 @@ static bool InitSdlSound()
 		Mix_SetTimidityCfg((GetExecutablePath().parent_path() / "freepats" / "crude.cfg").generic_u8string().c_str());
 	}
 #endif
+#ifdef __EMSCRIPTEN__
+	// dusty-bytes: force SDL's dummy audio driver BEFORE Mix_OpenAudio opens the
+	// device. Mix_OpenAudio calls SDL_InitSubSystem(SDL_INIT_AUDIO) internally,
+	// which reads SDL_HINT_AUDIODRIVER to select the driver. Without this hint,
+	// the Emscripten audio driver is selected, which installs a ScriptProcessorNode
+	// onaudioprocess callback on the JS main thread. That callback calls
+	// dynCall("vp", mixer_fill_cb) — without ASYNCIFY the wasm function-table type
+	// for SDL_AudioCallback (viii) doesn't match "vp" → RuntimeError: function
+	// signature mismatch. Concurrently, Mix_PlayChannel on the engine pthread races
+	// with the onaudioprocess mixer reads → OOB memory access at ~54s.
+	// The dummy driver opens the device without any JS audio callback, eliminating
+	// both failures. Mix_LoadWAV / Mix_PlayChannel still work (audio_opened == 1);
+	// SFX output is silent until dusty.audio.playSfx is implemented.
+	// Note: this hint MUST be set before Mix_OpenAudio (not just before SDL_Init
+	// in sdl.cpp), because Mix_OpenAudio is the first SDL audio init path and
+	// InitSound() runs before InitVideo() in stratagusMain().
+	SDL_SetHint(SDL_HINT_AUDIODRIVER, "dummy");
+#endif
 	// just activate everything we can by setting all bits
 	Mix_Init(std::numeric_limits<unsigned int>::max());
 	if (Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, 1024)) {
