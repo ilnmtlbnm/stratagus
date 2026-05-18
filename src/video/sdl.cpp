@@ -308,21 +308,6 @@ void InitVideoSdl()
 	if (SDL_WasInit(SDL_INIT_VIDEO) == 0) {
 		// Fix tablet input in full-screen mode
 		SDL_setenv("SDL_MOUSE_RELATIVE", "0", 1);
-#ifdef __EMSCRIPTEN__
-		// dusty-bytes: force SDL's dummy audio driver on Emscripten so that
-		// Mix_OpenAudio does NOT install an onaudioprocess ScriptProcessorNode.
-		// Music is routed through dusty.audio.* (Web Audio, main thread).
-		// SFX uses Mix_PlayChannel on the engine pthread; with the SDL audio
-		// device open on the real emscripten driver, its onaudioprocess fires on
-		// the JS main thread and calls dynCall("vp", mixer_fill_cb) — which
-		// crashes without ASYNCIFY because the wasm function-table type tag for
-		// the SDL_AudioCallback (viii) doesn't match "vp". The dummy driver
-		// opens the device without registering any JS audio callback, eliminating
-		// both the dynCall type mismatch and the pthread data-race on mixer state.
-		// Mix_LoadWAV / Mix_PlayChannel still work (audio_opened == 1); output
-		// is silent until a real SFX bridge is implemented.
-		SDL_SetHint(SDL_HINT_AUDIODRIVER, "dummy");
-#endif
 		int res = SDL_Init(
 					  SDL_INIT_AUDIO | SDL_INIT_VIDEO |
 					  SDL_INIT_EVENTS | SDL_INIT_TIMER);
