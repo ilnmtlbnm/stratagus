@@ -839,11 +839,22 @@ static bool InitSdlSound()
 		// so the dynCall path is permanently unreachable. SFX silence is acceptable
 		// per the convergence criterion (real SFX via dusty.audio.playSfx is a
 		// follow-on task).
+		// Phase 5.4b: also clear the silenceTimer — Emscripten installs a
+		// setInterval fallback that calls dynCall("vp",...) directly when
+		// AudioContext is suspended. Nulling onaudioprocess alone is not
+		// sufficient; the silenceTimer fires the same dynCall and crashes
+		// identically at ~360s. Clear both paths so no dynCall("vp") fires.
 		MAIN_THREAD_EM_ASM({
 			var SDL2 = Module['SDL2'];
-			if (SDL2 && SDL2.audio && SDL2.audio.scriptProcessorNode) {
-				SDL2.audio.scriptProcessorNode['onaudioprocess'] = null;
-				try { SDL2.audio.scriptProcessorNode['disconnect'](); } catch (e) {}
+			if (SDL2 && SDL2.audio) {
+				if (SDL2.audio.scriptProcessorNode) {
+					SDL2.audio.scriptProcessorNode['onaudioprocess'] = null;
+					try { SDL2.audio.scriptProcessorNode['disconnect'](); } catch (e) {}
+				}
+				if (SDL2.audio.silenceTimer !== undefined) {
+					clearInterval(SDL2.audio.silenceTimer);
+					SDL2.audio.silenceTimer = undefined;
+				}
 			}
 		});
 #endif
