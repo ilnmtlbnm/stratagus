@@ -734,37 +734,26 @@ elseif(EMSCRIPTEN)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EMS_SDL_FLAGS}")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_SDL_FLAGS}")
 
-	# dusty-bytes: runtime link flags for Worker + ASYNCIFY + preloaded data.wargus.
+	# dusty-bytes: runtime link flags for Worker + pthread + preloaded data.wargus.
 	# STRATAGUS_DATA_PRELOAD points at the host directory bundled into MEMFS at /data.wargus.
 	# Override at configure time: -DSTRATAGUS_DATA_PRELOAD=/abs/path@/data.wargus
 	if(NOT DEFINED STRATAGUS_DATA_PRELOAD)
 		set(STRATAGUS_DATA_PRELOAD "${CMAKE_SOURCE_DIR}/../../../dusty-games-platform/games-demo/warcraft2/data.wargus@/data.wargus")
 	endif()
-	# dusty-bytes: ASYNCIFY_REMOVE list. These are EventCallback function pointers
-	# stored in the indirect function table. ASYNCIFY rewrites lambdas/free functions
-	# reachable from SDL_Delay (via WaitEventsOneFrame) to take an extra async-state
-	# arg, but the table type tag (vi/vii) is fixed at compile time -> dispatch
-	# trips a "function signature mismatch" RuntimeError. Removing async transform
-	# from these short, non-yielding callbacks keeps their signatures matching the
-	# table tag. See refactors in src/stratagus/title.cpp + src/ui/widgets.cpp.
-	# dusty-bytes NOTE: LuaActionListener::action is intentionally NOT in this list
-	# even though iter-2 added it to fix the menu vtable rewind trap. Adding it
-	# shifts the ASYNCIFY state table in a way that causes SDL_AudioDevice struct
-	# offset corruption (Trap #1 from iter-2), breaking onaudioprocess with 300+
-	# "function signature mismatch" errors. The SDL Trap #1 is an emcc 5.0.2 bug
-	# (struct layout under ASYNCIFY). Until it is fixed upstream or worked around,
-	# LuaActionListener must stay out of ASYNCIFY_REMOVE and rely on the fact that
-	# the replay harness click-based menu navigation does not exercise the
-	# MenuScreen::logic rewind path that triggered Trap #2.
-	# StopMusic/SetMusicVolume/IsMusicPlaying are kept (noinline+used) because
-	# their presence in the list stabilises the ASYNCIFY state table layout such
-	# that the SDL_AudioDevice callback pointer lands at the correct table slot.
-	set(ASYNCIFY_REMOVE_LIST "[\"MenuHandleKeyDown\",\"MenuHandleKeyUp\",\"MenuHandleKeyRepeat\",\"MenuHandleMouseMove\",\"MenuHandleButtonNoop\",\"TitleCb_ButtonPressed\",\"TitleCb_ButtonReleased\",\"TitleCb_MouseMoved\",\"TitleCb_MouseExit\",\"TitleCb_KeyPressed\",\"TitleCb_KeyReleased\",\"TitleCb_KeyRepeated\",\"HandleSoundEvent(SDL_Event&)\",\"PlaySoundFileCallback(int)\",\"MusicFinishedCallback()\",\"CheckMusicFinished(int)\",\"ChannelFinished(int)\",\"StopMusic()\",\"SetMusicVolume(int)\",\"IsMusicPlaying()\"]")
-	# --profiling-funcs keeps the wasm function-name section so RuntimeError stack
-	# traces resolve to function names instead of opaque hex offsets like
-	# `01695e9a:1`. Cheap (~50KB wasm size, no perf impact) and pays for itself the
-	# first time we need to diagnose a mid-gameplay trap.
-	set(EMS_LINK_FLAGS "-sASYNCIFY -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sASYNCIFY_STACK_SIZE=32768 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=268435456 -sSTACK_SIZE=5242880 -sEXIT_RUNTIME=0 -fno-lto --profiling-funcs -sUSE_PTHREADS=1 -sPTHREAD_POOL_SIZE=4 -sSHARED_MEMORY=1 --preload-file ${STRATAGUS_DATA_PRELOAD}")
+	# dusty-bytes 2026-05-18 (Phase 5): ASYNCIFY removed entirely.
+	# stratagus uses SDL_Delay + SDL_PollEvent for its main loop — a native blocking
+	# pattern that maps cleanly to Atomics.wait on a pthread. SDL init (including
+	# SDL_OpenAudio, which calls EM_ASM that needs the MockAudioContext from
+	# worker-shim.js) runs on the Emscripten main thread. After InitVideo(),
+	# stratagusMain() spawns an engine pthread (via dusty_engine_thread) and calls
+	# emscripten_exit_with_live_runtime() so the main thread stays alive as the JS
+	# event pump. The engine pthread runs ShowTitleScreens/MenuLoop/etc. blocking on
+	# Atomics.wait instead of ASYNCIFY save/restore. No indirect-call type-tag
+	# mismatches, no rewind-into-freed-Lua-state OOBs.
+	# EXIT_RUNTIME=0: Emscripten keeps the runtime alive while pthreads are running.
+	# PTHREAD_POOL_SIZE=4: pre-spawns workers; engine thread uses one from the pool.
+	# --profiling-funcs kept: wasm name section needed for readable stack traces.
+	set(EMS_LINK_FLAGS "-sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=268435456 -sSTACK_SIZE=5242880 -fno-lto --profiling-funcs -sUSE_PTHREADS=1 -sPTHREAD_POOL_SIZE=4 -sSHARED_MEMORY=1 --preload-file ${STRATAGUS_DATA_PRELOAD}")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto -pthread")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto -pthread")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_LINK_FLAGS}")
