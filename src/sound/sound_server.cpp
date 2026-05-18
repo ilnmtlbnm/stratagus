@@ -236,9 +236,11 @@ static bool External_Volume(int volume, int oldVolume) {
 
 static bool ems_music_playing = false;
 
-// dusty-bytes: External_Play reads the OGG from MEMFS via Module.FS.readFile
-// (a synchronous JS call) and hands encoded bytes to dusty.audio.playMusic.
-// Uses EM_ASM_INT — no fopen/fread so ASYNCIFY does not taint this path.
+// dusty-bytes: External_Play reads the OGG from MEMFS via FS.readFile
+// (a synchronous JS call on the main thread) and hands encoded bytes to
+// dusty.audio.playMusic. Uses MAIN_THREAD_EM_ASM_INT so that when the engine
+// main loop runs on a pthread (Phase 5), the call is proxied to the Emscripten
+// main thread where FS and self.dusty.audio are defined.
 // Returns true so PlayMusic skips Mix_PlayMusic (avoids SDL_mixer OGG trap).
 // Only handles long-form compressed music (.ogg/.opus/.mp3). SFX voice clips
 // (.wav/.snd/.acm) and MIDI fall through (return false) to SDL_mixer's
@@ -260,7 +262,7 @@ static bool External_Play(const std::string &file) {
 		return false;
 	}
 	fs::path full = LibraryFileName(file.c_str());
-	int ok = EM_ASM_INT({
+	int ok = MAIN_THREAD_EM_ASM_INT({
 		try {
 			var path = UTF8ToString($0);
 			var name = UTF8ToString($1);
@@ -293,7 +295,7 @@ static bool External_IsPlaying() {
 
 static bool External_Stop() {
 	if (!ems_music_playing) return false;
-	EM_ASM({
+	MAIN_THREAD_EM_ASM({
 		if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.stopMusic) {
 			self.dusty.audio.stopMusic();
 		}
@@ -303,7 +305,7 @@ static bool External_Stop() {
 }
 
 static bool External_Volume(int volume, int /*oldVolume*/) {
-	EM_ASM({
+	MAIN_THREAD_EM_ASM({
 		if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.setMusicVolume) {
 			self.dusty.audio.setMusicVolume($0 / 128.0);
 		}

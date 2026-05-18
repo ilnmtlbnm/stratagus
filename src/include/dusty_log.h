@@ -27,7 +27,7 @@
     do { \
         char _dusty_buf[512]; \
         snprintf(_dusty_buf, sizeof(_dusty_buf), fmt, ##__VA_ARGS__); \
-        EM_ASM({ \
+        MAIN_THREAD_EM_ASM({ \
             if (typeof dusty !== 'undefined' && dusty.log) { \
                 dusty.log(UTF8ToString($0), UTF8ToString($1), UTF8ToString($2)); \
             } \
