@@ -828,6 +828,25 @@ static bool InitSdlSound()
 			printf(" %s", Mix_GetMusicDecoder(i));
 		}
 		printf("\n");
+#ifdef __EMSCRIPTEN__
+		// dusty-bytes (Phase 5.4): Null and disconnect the SDL2 ScriptProcessorNode
+		// onaudioprocess handler immediately after Mix_OpenAudio. Despite
+		// SDL_HINT_AUDIODRIVER="dummy", Emscripten's EMSCRIPTENAUDIO_OpenDevice
+		// installs this handler. Without ASYNCIFY, the handler calls
+		// dynCall("vp", HandleAudioProcess, ...) but the wasm function-table type is
+		// vi/viii, producing "function signature mismatch" + "memory access out of
+		// bounds" after ~360s of accumulated audio-callback ticks. Null at source
+		// so the dynCall path is permanently unreachable. SFX silence is acceptable
+		// per the convergence criterion (real SFX via dusty.audio.playSfx is a
+		// follow-on task).
+		MAIN_THREAD_EM_ASM({
+			var SDL2 = Module['SDL2'];
+			if (SDL2 && SDL2.audio && SDL2.audio.scriptProcessorNode) {
+				SDL2.audio.scriptProcessorNode['onaudioprocess'] = null;
+				try { SDL2.audio.scriptProcessorNode['disconnect'](); } catch (e) {}
+			}
+		});
+#endif
 	}
 	return true;
 }
