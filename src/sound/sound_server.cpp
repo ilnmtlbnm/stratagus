@@ -562,19 +562,28 @@ static sdl2::ChunkPtr ForceLoadSample(const char *name)
 		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx file-not-found path=%s", name);
 		return nullptr;
 	}
-	// Read file bytes
-	f->seek(0, SEEK_END);
-	long sz = f->tell();
-	f->seek(0, SEEK_SET);
-	if (sz <= 0) {
-		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx empty path=%s", name);
-		return nullptr;
-	}
-	Uint8 *buf = static_cast<Uint8 *>(SDL_malloc(static_cast<size_t>(sz)));
+	// Read file bytes into a growing buffer.
+	// CFile::seek(SEEK_END) doesn't work for .gz files (zlib gzseek lacks SEEK_END),
+	// so we read in chunks until EOF rather than pre-allocating by size.
+	const size_t CHUNK = 65536;
+	size_t capacity = CHUNK;
+	size_t total = 0;
+	Uint8 *buf = static_cast<Uint8 *>(SDL_malloc(capacity));
 	if (!buf) return nullptr;
-	if (f->read(buf, static_cast<size_t>(sz)) != static_cast<int>(sz)) {
+	for (;;) {
+		if (total + CHUNK > capacity) {
+			capacity = (capacity + CHUNK) * 2;
+			Uint8 *nb = static_cast<Uint8 *>(SDL_realloc(buf, capacity));
+			if (!nb) { SDL_free(buf); return nullptr; }
+			buf = nb;
+		}
+		int got = f->read(buf + total, CHUNK);
+		if (got <= 0) break;
+		total += static_cast<size_t>(got);
+	}
+	if (total == 0) {
 		SDL_free(buf);
-		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx read-fail path=%s", name);
+		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx empty path=%s", name);
 		return nullptr;
 	}
 
@@ -583,13 +592,13 @@ static sdl2::ChunkPtr ForceLoadSample(const char *name)
 	if (!chunk) { SDL_free(buf); return nullptr; }
 	chunk->allocated = 1;    // FreeSample checks this to call Mix_FreeChunk
 	chunk->abuf = buf;
-	chunk->alen = static_cast<Uint32>(sz);
+	chunk->alen = static_cast<Uint32>(total);
 	chunk->volume = MIX_MAX_VOLUME;
 
 	// Register chunk → chunkId
 	int cid = ems_next_chunk_id++;
 	ems_chunk_id_map[chunk] = cid;
-	DUSTY_LOG("audio", "warn", "[dusty.audio] sfx loaded path=%s chunkId=%d bytes=%ld", name, cid, sz);
+	DUSTY_LOG("audio", "warn", "[dusty.audio] sfx loaded path=%s chunkId=%d bytes=%zu", name, cid, total);
 	return sdl2::ChunkPtr{chunk};
 #else
 	sdl2::ChunkPtr r{Mix_LoadWAV(name)};
