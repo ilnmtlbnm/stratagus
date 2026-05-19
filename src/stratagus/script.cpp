@@ -55,6 +55,10 @@
  #include <Shlobj.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 /*----------------------------------------------------------------------------
 --  Variables
 ----------------------------------------------------------------------------*/
@@ -307,7 +311,12 @@ static int CclLoad(lua_State *l)
 		LuaError(l, "incorrect argument");
 	}
 	const fs::path filename = LibraryFileName(std::string{LuaToString(l, 1)});
-	bool exitOnError = arg == 2 ? LuaToBoolean(l, 2) : true;
+	// dusty-bytes Phase 5.10: always survive load failures (OOM, parse error,
+	// file not found).  The Lua pcall inside LuaCall already catches errors and
+	// passes them to report(); using exitOnError=false means report() logs the
+	// error and stores it in __last_error__ rather than calling ::exit(1).
+	// The caller can pass true as a second arg to restore the old fatal behaviour.
+	bool exitOnError = arg == 2 ? LuaToBoolean(l, 2) : false;
 
 	// dusty-bytes: persistent already-loaded cache.  Once a game script file
 	// has been loaded, re-loading it is silently skipped.  This prevents the
@@ -334,6 +343,14 @@ static int CclLoad(lua_State *l)
 
 	if (LuaLoadFile(filename, "", exitOnError) == -1) {
 		ErrorPrint("Load failed: '%s'\n", filename.u8string().c_str());
+#ifdef __EMSCRIPTEN__
+		// dusty-bytes Phase 5.10: log file-not-found to JS console so we can
+		// correlate missing scripts with mid-game crashes.
+		MAIN_THREAD_EM_ASM({
+			console.warn('[lua-alloc:warn] CclLoad file-not-found file='
+			             + UTF8ToString($0));
+		}, filename.u8string().c_str());
+#endif
 	}
 	return 0;
 }
