@@ -121,6 +121,23 @@ void CreateGame(const fs::path &filename, CMap *map);
 
 void StartMap(const std::string &filename, bool clean)
 {
+	// dusty-bytes: prevent re-entrant StartMap.  With EXIT_RUNTIME=0, a running
+	// GameMainLoop may invoke StartMap() → CreateGame() → GameMainLoop() from
+	// within a menu logic callback (RunDemo via checkRunDemo after 2001 ticks).
+	// Re-entering StartMap while the outer game is active corrupts Lua globals
+	// and causes deterministic luaT_gettmbyobj OOB at cycle ~12777.
+	// Bail here (not in CreateGame) so GameMainLoop() is never called for the
+	// inner game and the outer game's Lua state is preserved.
+	static bool s_inStartMap = false;
+	if (s_inStartMap) {
+		ErrorPrint("Re-entrant StartMap('%s') blocked\n", filename.c_str());
+		return;
+	}
+	struct StartMapGuard {
+		StartMapGuard()  { s_inStartMap = true;  }
+		~StartMapGuard() { s_inStartMap = false; }
+	} _guard;
+
 	gcn::Widget *oldTop = Gui->getTop();
 	auto container = std::make_unique<gcn::Container>();
 	container->setDimension(gcn::Rectangle(0, 0, Video.Width, Video.Height));
