@@ -56,6 +56,25 @@
 # include <Shlobj.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <unordered_map>
+#include <vector>
+#include <atomic>
+
+// dusty-bytes SFX bridge state (Phase 5.5 remesh).
+// We bypass Mix_OpenAudio entirely so EMSCRIPTENAUDIO_OpenDevice never installs
+// its scriptProcessorNode/silenceTimer dynCall("vp") callbacks.
+// Channel bookkeeping is managed here rather than via SDL_mixer.
+
+static int ems_next_chunk_id = 1;  // monotonic, never 0
+// Maps Mix_Chunk* → chunkId for bridge calls. chunkId is passed to JS.
+static std::unordered_map<Mix_Chunk*, int> ems_chunk_id_map;
+// Per-channel tracking: which chunk is playing, for SampleIsPlaying / GetChannelSample.
+static Mix_Chunk* ems_ch_sample[64] = {};  // MaxChannels=64
+static std::atomic<bool> ems_ch_playing[64];  // true while JS source is active
+static bool ems_audio_opened = false;
+#endif
+
 /*----------------------------------------------------------------------------
 --  Variables
 ----------------------------------------------------------------------------*/
@@ -345,12 +364,21 @@ void ChannelFinished(int channel);
 */
 bool SampleIsPlaying(Mix_Chunk *sample)
 {
+#ifdef __EMSCRIPTEN__
+	for (int i = 0; i < MaxChannels; ++i) {
+		if (ems_ch_sample[i] == sample && ems_ch_playing[i].load()) {
+			return true;
+		}
+	}
+	return false;
+#else
 	for (int i = 0; i < MaxChannels; ++i) {
 		if (Mix_GetChunk(i) == sample && Mix_Playing(i)) {
 			return true;
 		}
 	}
 	return false;
+#endif
 }
 
 bool UnitSoundIsPlaying(const Origin &origin)
@@ -358,12 +386,21 @@ bool UnitSoundIsPlaying(const Origin &origin)
 	if (origin.Id == 0) {
 		return false;
 	}
+#ifdef __EMSCRIPTEN__
+	for (int i = 0; i < MaxChannels; ++i) {
+		if (Channels[i].Unit && origin.Id == Channels[i].Unit->Id && ems_ch_playing[i].load()) {
+			return true;
+		}
+	}
+	return false;
+#else
 	for (int i = 0; i < MaxChannels; ++i) {
 		if (Channels[i].Unit && origin.Id == Channels[i].Unit->Id && Mix_Playing(i)) {
 			return true;
 		}
 	}
 	return false;
+#endif
 }
 
 /**
@@ -401,7 +438,17 @@ __attribute__((noinline,used)) void HandleSoundEvent(SDL_Event &event)
 */
 int SetChannelVolume(int channel, int volume)
 {
+#ifdef __EMSCRIPTEN__
+	int sdl_vol = static_cast<int>(volume * VolumeScale);
+	MAIN_THREAD_EM_ASM({
+		if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.setSfxVolume) {
+			self.dusty.audio.setSfxVolume($0, $1);
+		}
+	}, channel, sdl_vol);
+	return sdl_vol;
+#else
 	return Mix_Volume(channel, volume * VolumeScale);
+#endif
 }
 
 /**
@@ -414,6 +461,10 @@ int SetChannelVolume(int channel, int volume)
 */
 void SetChannelStereo(int channel, int stereo)
 {
+#ifdef __EMSCRIPTEN__
+	// Panning not implemented in the SFX bridge; stereo is ignored.
+	(void)channel; (void)stereo;
+#else
 	if (Preference.StereoSound == false) {
 		Mix_SetPanning(channel, 255, 255);
 	} else {
@@ -427,6 +478,7 @@ void SetChannelStereo(int channel, int stereo)
 		}
 		Mix_SetPanning(channel, left, right);
 	}
+#endif
 }
 
 /**
@@ -434,11 +486,20 @@ void SetChannelStereo(int channel, int stereo)
 */
 Mix_Chunk *GetChannelSample(int channel)
 {
+#ifdef __EMSCRIPTEN__
+	if (channel >= 0 && channel < MaxChannels && ems_ch_playing[channel].load()) {
+		return ems_ch_sample[channel];
+	}
+	return nullptr;
+#else
 	if (Mix_Playing(channel)) {
 		return Mix_GetChunk(channel);
 	}
 	return nullptr;
+#endif
 }
+
+static void ems_halt_channel(int channel);
 
 /**
 **  Stop a channel
@@ -447,7 +508,11 @@ Mix_Chunk *GetChannelSample(int channel)
 */
 void StopChannel(int channel)
 {
+#ifdef __EMSCRIPTEN__
+	ems_halt_channel(channel);
+#else
 	Mix_HaltChannel(channel);
+#endif
 }
 
 /**
@@ -455,7 +520,11 @@ void StopChannel(int channel)
 */
 void StopAllChannels()
 {
+#ifdef __EMSCRIPTEN__
+	ems_halt_channel(-1);
+#else
 	Mix_HaltChannel(-1);
+#endif
 }
 
 static Mix_Music *currentMusic = nullptr;
@@ -482,6 +551,47 @@ static Mix_Music *LoadMusic(const char *name)
 
 static sdl2::ChunkPtr ForceLoadSample(const char *name)
 {
+#ifdef __EMSCRIPTEN__
+	// dusty-bytes SFX bridge (Phase 5.5): read file bytes via CFile (uses MEMFS),
+	// allocate a real Mix_Chunk so the engine can read ->allocated / ->volume safely,
+	// assign a monotonic chunkId, and store the pointer→chunkId mapping for bridge calls.
+	// We do NOT call Mix_LoadWAV because there is no open audio device (Mix_OpenAudio
+	// is skipped to prevent EMSCRIPTENAUDIO_OpenDevice installing dynCall("vp") handlers).
+	auto f = std::make_unique<CFile>();
+	if (f->open(name, CL_OPEN_READ) == -1) {
+		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx file-not-found path=%s", name);
+		return nullptr;
+	}
+	// Read file bytes
+	f->seek(0, SEEK_END);
+	long sz = f->tell();
+	f->seek(0, SEEK_SET);
+	if (sz <= 0) {
+		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx empty path=%s", name);
+		return nullptr;
+	}
+	Uint8 *buf = static_cast<Uint8 *>(SDL_malloc(static_cast<size_t>(sz)));
+	if (!buf) return nullptr;
+	if (f->read(buf, static_cast<size_t>(sz)) != static_cast<int>(sz)) {
+		SDL_free(buf);
+		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx read-fail path=%s", name);
+		return nullptr;
+	}
+
+	// Allocate a real Mix_Chunk so field accesses work; abuf holds the raw bytes.
+	Mix_Chunk *chunk = static_cast<Mix_Chunk *>(SDL_calloc(sizeof(Mix_Chunk), 1));
+	if (!chunk) { SDL_free(buf); return nullptr; }
+	chunk->allocated = 1;    // FreeSample checks this to call Mix_FreeChunk
+	chunk->abuf = buf;
+	chunk->alen = static_cast<Uint32>(sz);
+	chunk->volume = MIX_MAX_VOLUME;
+
+	// Register chunk → chunkId
+	int cid = ems_next_chunk_id++;
+	ems_chunk_id_map[chunk] = cid;
+	DUSTY_LOG("audio", "warn", "[dusty.audio] sfx loaded path=%s chunkId=%d bytes=%ld", name, cid, sz);
+	return sdl2::ChunkPtr{chunk};
+#else
 	sdl2::ChunkPtr r{Mix_LoadWAV(name)};
 	if (r) {
 		return r;
@@ -492,6 +602,7 @@ static sdl2::ChunkPtr ForceLoadSample(const char *name)
 		return nullptr;
 	}
 	return sdl2::ChunkPtr{Mix_LoadWAV_RW(CFile::to_SDL_RWops(std::move(f)), 1)};
+#endif
 }
 
 static sdl2::ChunkPtr LoadSample(const char *name)
@@ -561,9 +672,25 @@ void FreeSample(Mix_Chunk *sample)
 		return;
 	}
 #endif
+#ifdef __EMSCRIPTEN__
+	// Notify JS to drop cached AudioBuffer, then free the C-side allocation.
+	auto it = ems_chunk_id_map.find(sample);
+	if (it != ems_chunk_id_map.end()) {
+		int cid = it->second;
+		ems_chunk_id_map.erase(it);
+		MAIN_THREAD_EM_ASM({
+			if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.freeSfx) {
+				self.dusty.audio.freeSfx($0);
+			}
+		}, cid);
+	}
+	SDL_free(sample->abuf);
+	SDL_free(sample);
+#else
 	if (sample->allocated == 1) {
 		Mix_FreeChunk(sample);
 	}
+#endif
 }
 
 /**
@@ -573,6 +700,49 @@ void FreeSample(Mix_Chunk *sample)
 **
 **  @return        Channel number, -1 for error
 */
+#ifdef __EMSCRIPTEN__
+// Halt a channel (or all channels if channel==-1) via the bridge + fire ChannelFinished.
+static void ems_halt_channel(int channel)
+{
+	auto do_halt = [](int ch) {
+		if (ch < 0 || ch >= MaxChannels) return;
+		if (!ems_ch_playing[ch].load()) return;
+		ems_ch_playing[ch].store(false);
+		ems_ch_sample[ch] = nullptr;
+		// Invoke ChannelFinished to keep engine bookkeeping coherent.
+		ChannelFinished(ch);
+	};
+	if (channel == -1) {
+		for (int i = 0; i < MaxChannels; ++i) do_halt(i);
+		MAIN_THREAD_EM_ASM({
+			if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.stopSfx) {
+				self.dusty.audio.stopSfx(-1);
+			}
+		});
+	} else {
+		do_halt(channel);
+		MAIN_THREAD_EM_ASM({
+			if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.stopSfx) {
+				self.dusty.audio.stopSfx($0);
+			}
+		}, channel);
+	}
+}
+
+// Find a free channel on Emscripten (no SDL_mixer channel manager available).
+static int ems_find_free_channel()
+{
+	for (int i = 0; i < MaxChannels; ++i) {
+		if (!ems_ch_playing[i].load() && !Channels[i].Unit) {
+			return i;
+		}
+	}
+	// All channels busy — steal channel 0.
+	ems_halt_channel(0);
+	return 0;
+}
+#endif
+
 static int PlaySample(Mix_Chunk *sample, Origin *origin, void (*callback)(int channel))
 {
 	int channel = -1;
@@ -582,12 +752,71 @@ static int PlaySample(Mix_Chunk *sample, Origin *origin, void (*callback)(int ch
 		if (sample->allocated == NotYetLoadedMagic) {
 			char *name = (char*)(sample->abuf);
 			if (auto loadedSample = ForceLoadSample(name)) {
+#ifdef __EMSCRIPTEN__
+				// Save the ForceLoadSample ptr (has the chunkId) before swap.
+				Mix_Chunk *loaded_ptr = loadedSample.get();
+				int saved_cid = 0;
+				{
+					auto it = ems_chunk_id_map.find(loaded_ptr);
+					if (it != ems_chunk_id_map.end()) {
+						saved_cid = it->second;
+						ems_chunk_id_map.erase(it);
+					}
+				}
 				std::swap(*sample, *loadedSample);
+				// Now re-register sample (original ptr) with the saved chunkId.
+				if (saved_cid != 0) {
+					ems_chunk_id_map[sample] = saved_cid;
+				} else {
+					ems_chunk_id_map[sample] = ems_next_chunk_id++;
+				}
+#else
+				std::swap(*sample, *loadedSample);
+#endif
 			} else {
 				return -1;
 			}
 		}
 #endif
+
+#ifdef __EMSCRIPTEN__
+		// Bridge path: find a free channel, set up bookkeeping, send bytes to JS.
+		channel = ems_find_free_channel();
+		if (channel >= 0 && channel < MaxChannels) {
+			Channels[channel].FinishedCallback = callback;
+			if (origin && origin->Base) {
+				auto src = std::make_unique<Origin>();
+				src->Base = origin->Base;
+				src->Id = origin->Id;
+				Channels[channel].Unit = std::move(src);
+			}
+			ems_ch_sample[channel] = sample;
+			ems_ch_playing[channel].store(true);
+
+			int cid = 0;
+			auto it = ems_chunk_id_map.find(sample);
+			if (it != ems_chunk_id_map.end()) cid = it->second;
+			int sdl_vol = static_cast<int>(sample->volume * VolumeScale);
+			// Pass bytes from abuf to JS bridge via MAIN_THREAD_EM_ASM.
+			// abuf is valid until FreeSample; JS decodes asynchronously and caches.
+			MAIN_THREAD_EM_ASM({
+				if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.playSfx) {
+					var bytes = new Uint8Array(HEAPU8.buffer, $2, $3);
+					self.dusty.audio.playSfx($0, $1, 0, $4, bytes);
+				}
+			}, cid, channel, (uintptr_t)sample->abuf, (int)sample->alen, sdl_vol);
+
+			// Fire ChannelFinished immediately: no async audio completion signal from
+			// the bridge back to C, and the engine uses ChannelFinished to reset
+			// bookkeeping (Unit ptr) and allow FreeSample. The JS bridge plays async;
+			// we mark C-side "not playing" immediately to avoid stale channel locks.
+			// This mirrors the iter-3 Mix_HaltChannel approach.
+			ems_ch_playing[channel].store(false);
+			ems_ch_sample[channel] = nullptr;
+			ChannelFinished(channel);
+			// Keep Channels[channel].Unit = nullptr (ChannelFinished clears it).
+		}
+#else
 		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx channel-request vol=%d", sample->volume);
 		channel = Mix_PlayChannel(-1, sample, 0);
 		if (channel >= 0 && channel < MaxChannels) {
@@ -598,13 +827,8 @@ static int PlaySample(Mix_Chunk *sample, Origin *origin, void (*callback)(int ch
 				source->Id = origin->Id;
 				Channels[channel].Unit = std::move(source);
 			}
-#ifdef __EMSCRIPTEN__
-			// Dummy SDL audio driver never fires ChannelFinished; halt immediately
-			// so Mix_FreeChunk doesn't see stale Mix_Playing(channel)==1 later.
-			// FinishedCallback and Unit are already set above so they fire correctly.
-			Mix_HaltChannel(channel);
-#endif
 		}
+#endif
 	}
 	return channel;
 }
@@ -662,7 +886,13 @@ bool IsEffectsEnabled()
 */
 void SetMusicFinishedCallback(void (*callback)())
 {
+#ifndef __EMSCRIPTEN__
+	// On Emscripten: Mix_OpenAudio is skipped (audio_opened==0); music is handled
+	// by External_Play / dusty.audio.playMusic. No SDL_mixer music callback needed.
 	Mix_HookMusicFinished(callback);
+#else
+	(void)callback;
+#endif
 }
 
 /**
@@ -685,6 +915,13 @@ int PlayMusic(const std::string &file)
 		return 0;
 	}
 
+#ifdef __EMSCRIPTEN__
+	// On Emscripten: Mix_OpenAudio was skipped; Mix_LoadMUS / Mix_PlayMusic would
+	// crash without audio_opened. Non-OGG music (e.g. MIDI) is unsupported — skip.
+	DUSTY_LOG("audio", "warn", "[dusty.audio] PlayMusic unsupported-format path=%s", file.c_str());
+	ErrorPrint("PlayMusic: unsupported format on Emscripten '%s'\n", file.c_str());
+	return -1;
+#else
 	Mix_Music *music = LoadMusic(file);
 	if (music) {
 		DUSTY_LOG("audio", "warn", "[dusty.audio] music path=%s", file.c_str());
@@ -695,6 +932,7 @@ int PlayMusic(const std::string &file)
 		ErrorPrint("Could not play '%s'\n", file.c_str());
 		return -1;
 	}
+#endif
 }
 
 /**
@@ -720,7 +958,9 @@ __attribute__((noinline, used)) void SetMusicVolume(int volume)
 	// so we adjust the music
 	int oldVolume = MusicVolume;
 	MusicVolume = volume;
+#ifndef __EMSCRIPTEN__
 	Mix_VolumeMusic(MusicVolume);
+#endif
 	External_Volume(MusicVolume, oldVolume);
 }
 
@@ -758,7 +998,11 @@ bool IsMusicEnabled()
 */
 __attribute__((noinline, used)) bool IsMusicPlaying()
 {
+#ifdef __EMSCRIPTEN__
+	return External_IsPlaying();
+#else
 	return Mix_PlayingMusic() || External_IsPlaying();
+#endif
 }
 
 /*----------------------------------------------------------------------------
@@ -783,6 +1027,26 @@ bool SoundEnabled()
 */
 static bool InitSdlSound()
 {
+#ifdef __EMSCRIPTEN__
+	// dusty-bytes Phase 5.5 (SFX bridge remesh): Skip Mix_OpenAudio entirely on
+	// Emscripten. Without Mix_OpenAudio, EMSCRIPTENAUDIO_OpenDevice never runs,
+	// so no ScriptProcessorNode / onaudioprocess / silenceTimer dynCall("vp") path
+	// is installed — the entire crash category is removed at the source.
+	//
+	// SDL_mixer functions that require audio_opened (Mix_PlayChannel, Mix_HaltChannel,
+	// Mix_Playing, Mix_GetChunk, Mix_SetPanning, etc.) are bypassed by our #ifdef
+	// __EMSCRIPTEN__ shims above. Mix_LoadWAV is replaced by ForceLoadSample's
+	// EMSCRIPTEN branch which reads from MEMFS via CFile directly.
+	//
+	// Mix_AllocateChannels and Mix_ChannelFinished require audio_opened; we skip
+	// them too — channel bookkeeping lives in ems_ch_playing[] / ems_ch_sample[].
+	// ChannelFinished() is called synchronously from ems_halt_channel().
+	//
+	// Music continues through dusty.audio.playMusic (External_Play branch, unchanged).
+	DUSTY_LOG("audio", "warn", "[dusty.audio] SFX bridge init — Mix_OpenAudio skipped");
+	ems_audio_opened = true;
+	return true;
+#else
 	fs::path timidityCfg(StratagusLibPath);
 	timidityCfg = timidityCfg / "timidity" / "timidity.cfg";
 #ifndef BUILD_VENDORED_SDL
@@ -799,24 +1063,6 @@ static bool InitSdlSound()
 		Mix_SetTimidityCfg((GetExecutablePath().parent_path() / "freepats" / "crude.cfg").generic_u8string().c_str());
 	}
 #endif
-#ifdef __EMSCRIPTEN__
-	// dusty-bytes: force SDL's dummy audio driver BEFORE Mix_OpenAudio opens the
-	// device. Mix_OpenAudio calls SDL_InitSubSystem(SDL_INIT_AUDIO) internally,
-	// which reads SDL_HINT_AUDIODRIVER to select the driver. Without this hint,
-	// the Emscripten audio driver is selected, which installs a ScriptProcessorNode
-	// onaudioprocess callback on the JS main thread. That callback calls
-	// dynCall("vp", mixer_fill_cb) — without ASYNCIFY the wasm function-table type
-	// for SDL_AudioCallback (viii) doesn't match "vp" → RuntimeError: function
-	// signature mismatch. Concurrently, Mix_PlayChannel on the engine pthread races
-	// with the onaudioprocess mixer reads → OOB memory access at ~54s.
-	// The dummy driver opens the device without any JS audio callback, eliminating
-	// both failures. Mix_LoadWAV / Mix_PlayChannel still work (audio_opened == 1);
-	// SFX output is silent until dusty.audio.playSfx is implemented.
-	// Note: this hint MUST be set before Mix_OpenAudio (not just before SDL_Init
-	// in sdl.cpp), because Mix_OpenAudio is the first SDL audio init path and
-	// InitSound() runs before InitVideo() in stratagusMain().
-	SDL_SetHint(SDL_HINT_AUDIODRIVER, "dummy");
-#endif
 	// just activate everything we can by setting all bits
 	Mix_Init(std::numeric_limits<unsigned int>::max());
 	if (Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, 1024)) {
@@ -832,38 +1078,9 @@ static bool InitSdlSound()
 			printf(" %s", Mix_GetMusicDecoder(i));
 		}
 		printf("\n");
-#ifdef __EMSCRIPTEN__
-		// dusty-bytes (Phase 5.4): Null and disconnect the SDL2 ScriptProcessorNode
-		// onaudioprocess handler immediately after Mix_OpenAudio. Despite
-		// SDL_HINT_AUDIODRIVER="dummy", Emscripten's EMSCRIPTENAUDIO_OpenDevice
-		// installs this handler. Without ASYNCIFY, the handler calls
-		// dynCall("vp", HandleAudioProcess, ...) but the wasm function-table type is
-		// vi/viii, producing "function signature mismatch" + "memory access out of
-		// bounds" after ~360s of accumulated audio-callback ticks. Null at source
-		// so the dynCall path is permanently unreachable. SFX silence is acceptable
-		// per the convergence criterion (real SFX via dusty.audio.playSfx is a
-		// follow-on task).
-		// Phase 5.4b: also clear the silenceTimer — Emscripten installs a
-		// setInterval fallback that calls dynCall("vp",...) directly when
-		// AudioContext is suspended. Nulling onaudioprocess alone is not
-		// sufficient; the silenceTimer fires the same dynCall and crashes
-		// identically at ~360s. Clear both paths so no dynCall("vp") fires.
-		MAIN_THREAD_EM_ASM({
-			var SDL2 = Module['SDL2'];
-			if (SDL2 && SDL2.audio) {
-				if (SDL2.audio.scriptProcessorNode) {
-					SDL2.audio.scriptProcessorNode['onaudioprocess'] = null;
-					try { SDL2.audio.scriptProcessorNode['disconnect'](); } catch (e) {}
-				}
-				if (SDL2.audio.silenceTimer !== undefined) {
-					clearInterval(SDL2.audio.silenceTimer);
-					SDL2.audio.silenceTimer = undefined;
-				}
-			}
-		});
-#endif
 	}
 	return true;
+#endif
 }
 
 /**
@@ -882,12 +1099,16 @@ bool InitSound()
 	}
 	SDL_SOUND_FINISHED = SDL_RegisterEvents(1);
 	SoundInitialized = true;
+#ifndef __EMSCRIPTEN__
+	// On Emscripten: Mix_OpenAudio is skipped, so audio_opened==0 and
+	// Mix_AllocateChannels / Mix_ChannelFinished / Mix_ResumeMusic / Mix_Resume
+	// would fail. Channel management uses ems_ch_playing[] / ems_ch_sample[] instead.
 	Mix_AllocateChannels(MaxChannels);
 	Mix_ChannelFinished(ChannelFinished);
-
 	// Now we're ready for the callback to run
 	Mix_ResumeMusic();
 	Mix_Resume(-1);
+#endif
 	return true;
 }
 
@@ -896,8 +1117,10 @@ bool InitSound()
 */
 void QuitSound()
 {
+#ifndef __EMSCRIPTEN__
 	Mix_CloseAudio();
 	Mix_Quit();
+#endif
 	SoundInitialized = false;
 }
 
