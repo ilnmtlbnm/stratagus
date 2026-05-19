@@ -449,6 +449,19 @@ void GameMainLoop()
 	//
 	// Game over
 	//
+#ifdef __EMSCRIPTEN__
+	// dusty-bytes Phase 5.14: Full Lua GC after the game loop ends.
+	// At victory (frame ~20400) the Lua heap has accumulated ~38MB and
+	// dlmalloc free-list is near-empty (~680KB).  RunResultsMenu() then
+	// allocates many new Lua objects, pushing dlmalloc into a new arena
+	// growth that can corrupt the Emscripten proxy-queue structures while
+	// the SDL timer thread is concurrently draining them.  A full collect
+	// here reclaims all game-session strings/tables before the results menu
+	// starts, giving dlmalloc several MB of headroom.
+	if (Lua) {
+		lua_gc(Lua, LUA_GCCOLLECT, 0);
+	}
+#endif
 	if (ThisPlayer && IsNetworkGame()) {
 		OnlineContextHandler->reportGameResult();
 	}
