@@ -806,6 +806,23 @@ static bool has_any_extension(fs::path filename, std::initializer_list<fs::path>
 */
 void CreateGame(const fs::path &filename, CMap *map)
 {
+	// dusty-bytes: prevent re-entrant CreateGame.  With EXIT_RUNTIME=0, a running
+	// GameMainLoop may call RunDemo() → StartMap() → CreateGame() from within a
+	// menu logic callback fired by WaitEventsOneFrame().  Re-entering CreateGame
+	// while the outer game is active corrupts Lua globals (_triggers_, GameCycle,
+	// Icons, etc.) and causes luaT_gettmbyobj OOB at cycle ~12777.  Bail early so
+	// the outer game continues cleanly.
+	static bool s_inCreateGame = false;
+	if (s_inCreateGame) {
+		ErrorPrint("Re-entrant CreateGame() blocked (RunDemo from active game loop?)\n");
+		StopGame(GameNoResult);
+		return;
+	}
+	struct CreateGameGuard {
+		CreateGameGuard()  { s_inCreateGame = true;  }
+		~CreateGameGuard() { s_inCreateGame = false; }
+	} _guard;
+
 	if (SaveGameLoading) {
 		SaveGameLoading = false;
 		// Load game, already created game with Init/LoadModules
