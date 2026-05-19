@@ -260,29 +260,23 @@ static int g_luaLoadDepth = 0;
 int LuaLoadFile(const fs::path &file, const std::string &strArg, bool exitOnError)
 {
 	DebugPrint("Loading '%s'\n", file.u8string().c_str());
+	// dusty-bytes: depth tracking retained for CclLoad diagnostics; DUSTY_LOG
+	// calls removed from LuaLoadFile to avoid MAIN_THREAD_EM_ASM proxy when
+	// heap may be in a degraded state during extended gameplay.
 	const int depth = ++g_luaLoadDepth;
-	DUSTY_LOG("script", "warn", "[LuaLoadFile] depth=%d enter path=%s",
-	          depth, file.u8string().c_str());
+	(void)depth;  // suppress unused-variable warning without DUSTY_LOG
 
 	const auto content = GetFileContent(file);
 	if (!content) {
-		DUSTY_LOG("script", "warn", "[LuaLoadFile] depth=%d not-found path=%s",
-		          depth, file.u8string().c_str());
 		--g_luaLoadDepth;
 		return -1;
 	}
-	DUSTY_LOG("script", "warn", "[LuaLoadFile] depth=%d bytes=%zu path=%s",
-	          depth, content->size(), file.u8string().c_str());
 	if (file.string().rfind("stratagus.lua") != std::string::npos) {
 		FileChecksums ^= fletcher32(*content);
 		DebugPrint("FileChecksums after loading %s: %x\n", file.u8string().c_str(), FileChecksums);
 	}
 	// dusty-bytes: bypass __file__ global tracking (lua_setglobal → luaS_newlstr
 	// OOBs when the Lua string table is in a degraded state after long gameplay).
-	// The __file__ global is used by some Lua scripts for error context; removing
-	// it is safe here because stratagus's Lua scripts do not rely on __file__ for
-	// correctness, only diagnostics.  The chunk name passed to luaL_loadbuffer is
-	// still set correctly for error messages within the Lua runtime.
 	const int status = luaL_loadbuffer(Lua, content->c_str(), content->size(), file.string().c_str());
 
 	if (!status) {
@@ -295,8 +289,6 @@ int LuaLoadFile(const fs::path &file, const std::string &strArg, bool exitOnErro
 	} else {
 		report(status, exitOnError);
 	}
-	DUSTY_LOG("script", "warn", "[LuaLoadFile] depth=%d exit status=%d path=%s",
-	          depth, status, file.u8string().c_str());
 	--g_luaLoadDepth;
 	return status;
 }
