@@ -10,8 +10,20 @@ extern bool IsMusicEnabled(void);
 
 extern int PlayFile(const std::string name, LuaActionListener *listener = NULL);
 $[
+-- dusty-bytes: _playFileListeners anchors each LuaActionListener by channel
+-- number so Lua GC cannot collect the C++ object while the sound is playing.
+-- Without this, the LuaActionListener userdata is eligible for GC immediately
+-- after PlaySoundFile returns (no Lua-side reference), causing a use-after-free
+-- when PlaySoundFileCallback fires and calls listener->action().
+-- Channels are 0..63 (MaxChannels=64), so the table stays bounded.
+_playFileListeners = {}
 function PlaySoundFile(file, callback)
-  return PlayFile(file, LuaActionListener:new(callback))
+  local lal = LuaActionListener:new(callback)
+  local ch = PlayFile(file, lal)
+  if ch and ch >= 0 then
+    _playFileListeners[ch] = lal
+  end
+  return ch
 end
 $]
 
