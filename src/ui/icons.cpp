@@ -47,6 +47,7 @@
 
 #include <map>
 #include <memory>
+#include <unordered_set>
 
 /*----------------------------------------------------------------------------
 --  Variables
@@ -95,15 +96,32 @@ CIcon::CIcon(const std::string &ident) : Ident(ident)
 {
 	IconMap::iterator it = Icons.find(ident);
 	if (it == Icons.end()) {
-		ErrorPrint("icon not found: '%s'\n", ident.data());
-		ExitFatal(-1);
+		// dusty-bytes: log once per missing ident to avoid repeated allocation
+		// that can poison the Lua string table (luaS_newlstr OOB at ~frame 20400).
+		static std::unordered_set<std::string> s_reported;
+		std::string key(ident);
+		if (s_reported.find(key) == s_reported.end()) {
+			s_reported.insert(key);
+			ErrorPrint("icon not found (once): '%s'\n", ident.data());
+		}
+		return nullptr;
 	}
 	return it->second.get();
 }
 
 void CIcon::Load()
 {
-	Assert(G);
+	if (!G) {
+		// dusty-bytes: icon registered (via CIcon::New) but graphic never assigned
+		// because icons.png is absent from the demo data for this tileset.
+		// Skip silently — the button panel already guards IsLoaded() before drawing.
+		static std::unordered_set<std::string> s_null_reported;
+		if (s_null_reported.find(Ident) == s_null_reported.end()) {
+			s_null_reported.insert(Ident);
+			DUSTY_LOG("asset", "warn", "[icon-null-g] ident=%s (once)", Ident.c_str());
+		}
+		return;
+	}
 	G->Load();
 	if (!G->IsLoaded()) {
 		DUSTY_LOG("asset", "warn", "[asset-missing] path=%s caller=icons.cpp:Load kind=icon ident=%s",
@@ -414,7 +432,11 @@ bool IconConfig::Load()
 void LoadIcons()
 {
 	for (auto &[key, icon] : Icons) {
-		ShowLoadProgress(_("Icons %s"), icon->G->File.c_str());
+		// dusty-bytes: guard null G — icons registered without a graphic (absent in demo)
+		// have G = nullptr; dereferencing G->File here is UB that corrupts the heap.
+		if (icon->G) {
+			ShowLoadProgress(_("Icons %s"), icon->G->File.c_str());
+		}
 		icon->Load();
 	}
 }
