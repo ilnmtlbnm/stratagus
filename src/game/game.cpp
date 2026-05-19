@@ -166,7 +166,12 @@ void StartMap(const std::string &filename, bool clean)
 **  @param smpdir   smp directory
 **  @param mapname  map filename
 */
-static void LoadStratagusMap(const fs::path &smpdir, const fs::path &mapname)
+// dusty-bytes: returns true on success, false on map-not-found or load failure.
+// With EXIT_RUNTIME=0 (Emscripten pthreads), ExitFatal() is a no-op that returns,
+// so callers cannot rely on it to abort the execution flow.  Return a bool so
+// callers can bail out cleanly instead of continuing with a half-initialised state
+// that corrupts the Lua string table.
+static bool LoadStratagusMap(const fs::path &smpdir, const fs::path &mapname)
 {
 	fs::path mapfull = mapname;
 	// Try the same directory as the smp file first
@@ -199,12 +204,14 @@ static void LoadStratagusMap(const fs::path &smpdir, const fs::path &mapname)
 	if (LcmPreventRecurse) {
 		ErrorPrint("recursive use of load map!\n");
 		ExitFatal(-1);
+		return false;
 	}
 	InitPlayers();
 	LcmPreventRecurse = true;
 	if (LuaLoadFile(mapfull) == -1) {
+		LcmPreventRecurse = false;
 		ErrorPrint("Can't load lua file: '%s'\n", mapfull.u8string().c_str());
-		ExitFatal(-1);
+		return false;
 	}
 	LcmPreventRecurse = false;
 
@@ -212,14 +219,15 @@ static void LoadStratagusMap(const fs::path &smpdir, const fs::path &mapname)
 	// Not true if multiplayer levels!
 	if (!ThisPlayer) { /// ARI: bomb if nothing was loaded!
 		ErrorPrint("'%s': invalid map\n", mapname.u8string().c_str());
-		ExitFatal(-1);
+		return false;
 	}
 #endif
 	if (!Map.Info.MapWidth || !Map.Info.MapHeight) {
 		ErrorPrint("'%s': invalid map\n", mapname.u8string().c_str());
-		ExitFatal(-1);
+		return false;
 	}
 	Map.Info.Filename = mapname.string();
+	return true;
 }
 
 // Write a small image of map preview
@@ -536,7 +544,8 @@ bool SaveStratagusMap(const fs::path &mapName, CMap &map, int writeTerrain, Vec2
 **  @param filename  map filename
 **  @param map       map loaded
 */
-static void LoadMap(const fs::path &filename, CMap &map)
+// Returns true on success.
+static bool LoadMap(const fs::path &filename, CMap &map)
 {
 	auto name = filename;
 #ifdef USE_ZLIB
@@ -556,12 +565,15 @@ static void LoadMap(const fs::path &filename, CMap &map)
 		}
 		Assert(!map.Info.Filename.empty());
 		map.Create();
-		LoadStratagusMap(filename.parent_path(), map.Info.Filename);
-		return;
+		if (!LoadStratagusMap(filename.parent_path(), map.Info.Filename)) {
+			return false;
+		}
+		return true;
 	}
 
 	ErrorPrint("Unrecognized map format\n");
 	ExitFatal(-1);
+	return false;
 }
 
 /**
@@ -881,7 +893,14 @@ void CreateGame(const fs::path &filename, CMap *map)
 		// Load the map.
 		//
 		InitUnitTypes(1);
-		LoadMap(filename, *map);
+		// dusty-bytes: LoadMap returns false when the file is absent (e.g. demo maps
+		// that don't exist in the demo data set).  With EXIT_RUNTIME=0 (Emscripten
+		// pthreads), ExitFatal() is a no-op, so we must check and bail explicitly to
+		// prevent CreateGame() from continuing with a zero-size map and corrupt state.
+		if (!LoadMap(filename, *map)) {
+			StopGame(GameNoResult);
+			return;
+		}
 		ApplyUpgrades();
 	}
 	CclCommand("if (MapLoaded ~= nil) then MapLoaded() end");
