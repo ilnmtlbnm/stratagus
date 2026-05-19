@@ -682,6 +682,13 @@ void FreeSample(Mix_Chunk *sample)
 	}
 #endif
 #ifdef __EMSCRIPTEN__
+	// Clear any channel still referencing this sample so dusty_sfx_finished
+	// doesn't touch a freed pointer after async completion.
+	for (int i = 0; i < MaxChannels; ++i) {
+		if (ems_ch_sample[i] == sample) {
+			ems_ch_sample[i] = nullptr;
+		}
+	}
 	// Notify JS to drop cached AudioBuffer, then free the C-side allocation.
 	auto it = ems_chunk_id_map.find(sample);
 	if (it != ems_chunk_id_map.end()) {
@@ -750,6 +757,21 @@ static int ems_find_free_channel()
 	ems_halt_channel(0);
 	return 0;
 }
+
+// dusty_sfx_finished — called from JS (main thread / shell) when
+// BufferSourceNode.onended fires for channel `ch`.  Marks the C-side channel
+// free and pushes the SDL_SOUND_FINISHED event so the engine's event loop (on
+// the engine pthread) can invoke the registered FinishedCallback.
+// SDL_PeepEvents is thread-safe, so this is safe to call from the Emscripten
+// main thread.
+extern "C" EMSCRIPTEN_KEEPALIVE void dusty_sfx_finished(int ch)
+{
+	if (ch < 0 || ch >= MaxChannels) return;
+	if (!ems_ch_playing[ch].load()) return;
+	ems_ch_playing[ch].store(false);
+	ems_ch_sample[ch] = nullptr;
+	ChannelFinished(ch);
+}
 #endif
 
 static int PlaySample(Mix_Chunk *sample, Origin *origin, void (*callback)(int channel))
@@ -815,15 +837,13 @@ static int PlaySample(Mix_Chunk *sample, Origin *origin, void (*callback)(int ch
 				}
 			}, cid, channel, (uintptr_t)sample->abuf, (int)sample->alen, sdl_vol);
 
-			// Fire ChannelFinished immediately: no async audio completion signal from
-			// the bridge back to C, and the engine uses ChannelFinished to reset
-			// bookkeeping (Unit ptr) and allow FreeSample. The JS bridge plays async;
-			// we mark C-side "not playing" immediately to avoid stale channel locks.
-			// This mirrors the iter-3 Mix_HaltChannel approach.
-			ems_ch_playing[channel].store(false);
-			ems_ch_sample[channel] = nullptr;
-			ChannelFinished(channel);
-			// Keep Channels[channel].Unit = nullptr (ChannelFinished clears it).
+			// Do NOT fire ChannelFinished synchronously.  ems_ch_playing[channel]
+			// stays true until dusty_sfx_finished(channel) is called from JS when
+			// BufferSourceNode.onended fires.  This keeps the engine's Lua-side
+			// sound-state bookkeeping accurate: Mix_Playing() returns true for the
+			// correct duration, and PlaySoundFileCallback fires only after the sound
+			// actually completes.  (Phase 5.7 fix — sync firing caused deterministic
+			// +363s crash via cascading PlaySoundFileCallback → LuaLoadFile.)
 		}
 #else
 		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx channel-request vol=%d", sample->volume);
