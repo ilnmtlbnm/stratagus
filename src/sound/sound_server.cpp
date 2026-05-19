@@ -57,6 +57,7 @@
 #endif
 
 #ifdef __EMSCRIPTEN__
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 #include <atomic>
@@ -73,6 +74,10 @@ static std::unordered_map<Mix_Chunk*, int> ems_chunk_id_map;
 static Mix_Chunk* ems_ch_sample[64] = {};  // MaxChannels=64
 static std::atomic<bool> ems_ch_playing[64];  // true while JS source is active
 static bool ems_audio_opened = false;
+// dusty-bytes Phase 5.8: mutex protecting ems_ch_sample[] and Channels[].FinishedCallback
+// from concurrent access between the engine pthread (PlaySample) and the Worker main
+// thread (dusty_sfx_finished).
+static std::mutex ems_ch_mutex;
 #endif
 
 /*----------------------------------------------------------------------------
@@ -499,7 +504,7 @@ Mix_Chunk *GetChannelSample(int channel)
 #endif
 }
 
-static void ems_halt_channel(int channel);
+static void ems_halt_channel(int channel, bool notify_js = true);
 
 /**
 **  Stop a channel
@@ -684,9 +689,12 @@ void FreeSample(Mix_Chunk *sample)
 #ifdef __EMSCRIPTEN__
 	// Clear any channel still referencing this sample so dusty_sfx_finished
 	// doesn't touch a freed pointer after async completion.
-	for (int i = 0; i < MaxChannels; ++i) {
-		if (ems_ch_sample[i] == sample) {
-			ems_ch_sample[i] = nullptr;
+	{
+		std::lock_guard<std::mutex> guard(ems_ch_mutex);
+		for (int i = 0; i < MaxChannels; ++i) {
+			if (ems_ch_sample[i] == sample) {
+				ems_ch_sample[i] = nullptr;
+			}
 		}
 	}
 	// Notify JS to drop cached AudioBuffer, then free the C-side allocation.
@@ -718,7 +726,7 @@ void FreeSample(Mix_Chunk *sample)
 */
 #ifdef __EMSCRIPTEN__
 // Halt a channel (or all channels if channel==-1) via the bridge + fire ChannelFinished.
-static void ems_halt_channel(int channel)
+static void ems_halt_channel(int channel, bool notify_js)
 {
 	auto do_halt = [](int ch) {
 		if (ch < 0 || ch >= MaxChannels) return;
@@ -730,18 +738,22 @@ static void ems_halt_channel(int channel)
 	};
 	if (channel == -1) {
 		for (int i = 0; i < MaxChannels; ++i) do_halt(i);
-		MAIN_THREAD_EM_ASM({
-			if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.stopSfx) {
-				self.dusty.audio.stopSfx(-1);
-			}
-		});
+		if (notify_js) {
+			MAIN_THREAD_EM_ASM({
+				if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.stopSfx) {
+					self.dusty.audio.stopSfx(-1);
+				}
+			});
+		}
 	} else {
 		do_halt(channel);
-		MAIN_THREAD_EM_ASM({
-			if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.stopSfx) {
-				self.dusty.audio.stopSfx($0);
-			}
-		}, channel);
+		if (notify_js) {
+			MAIN_THREAD_EM_ASM({
+				if (typeof self !== 'undefined' && self.dusty && self.dusty.audio && self.dusty.audio.stopSfx) {
+					self.dusty.audio.stopSfx($0);
+				}
+			}, channel);
+		}
 	}
 }
 
@@ -753,8 +765,9 @@ static int ems_find_free_channel()
 			return i;
 		}
 	}
-	// All channels busy — steal channel 0.
-	ems_halt_channel(0);
+	// All channels busy — steal channel 0.  Pass notify_js=false to avoid
+	// MAIN_THREAD_EM_ASM while ems_ch_mutex is held (deadlock prevention).
+	ems_halt_channel(0, false);
 	return 0;
 }
 
@@ -767,6 +780,8 @@ static int ems_find_free_channel()
 extern "C" EMSCRIPTEN_KEEPALIVE void dusty_sfx_finished(int ch)
 {
 	if (ch < 0 || ch >= MaxChannels) return;
+	if (!ems_ch_playing[ch].load()) return;
+	std::lock_guard<std::mutex> guard(ems_ch_mutex);
 	if (!ems_ch_playing[ch].load()) return;
 	ems_ch_playing[ch].store(false);
 	ems_ch_sample[ch] = nullptr;
@@ -812,22 +827,28 @@ static int PlaySample(Mix_Chunk *sample, Origin *origin, void (*callback)(int ch
 
 #ifdef __EMSCRIPTEN__
 		// Bridge path: find a free channel, set up bookkeeping, send bytes to JS.
-		channel = ems_find_free_channel();
-		if (channel >= 0 && channel < MaxChannels) {
-			Channels[channel].FinishedCallback = callback;
-			if (origin && origin->Base) {
-				auto src = std::make_unique<Origin>();
-				src->Base = origin->Base;
-				src->Id = origin->Id;
-				Channels[channel].Unit = std::move(src);
+		// Phase 5.8: lock ems_ch_mutex to prevent race with dusty_sfx_finished.
+		int cid = 0;
+		int sdl_vol = 0;
+		{
+			std::lock_guard<std::mutex> guard(ems_ch_mutex);
+			channel = ems_find_free_channel();
+			if (channel >= 0 && channel < MaxChannels) {
+				Channels[channel].FinishedCallback = callback;
+				if (origin && origin->Base) {
+					auto src = std::make_unique<Origin>();
+					src->Base = origin->Base;
+					src->Id = origin->Id;
+					Channels[channel].Unit = std::move(src);
+				}
+				ems_ch_sample[channel] = sample;
+				ems_ch_playing[channel].store(true);
+				auto it = ems_chunk_id_map.find(sample);
+				if (it != ems_chunk_id_map.end()) cid = it->second;
+				sdl_vol = static_cast<int>(sample->volume * VolumeScale);
 			}
-			ems_ch_sample[channel] = sample;
-			ems_ch_playing[channel].store(true);
-
-			int cid = 0;
-			auto it = ems_chunk_id_map.find(sample);
-			if (it != ems_chunk_id_map.end()) cid = it->second;
-			int sdl_vol = static_cast<int>(sample->volume * VolumeScale);
+		}
+		if (channel >= 0 && channel < MaxChannels) {
 			// Pass bytes from abuf to JS bridge via MAIN_THREAD_EM_ASM.
 			// abuf is valid until FreeSample; JS decodes asynchronously and caches.
 			MAIN_THREAD_EM_ASM({
@@ -839,11 +860,7 @@ static int PlaySample(Mix_Chunk *sample, Origin *origin, void (*callback)(int ch
 
 			// Do NOT fire ChannelFinished synchronously.  ems_ch_playing[channel]
 			// stays true until dusty_sfx_finished(channel) is called from JS when
-			// BufferSourceNode.onended fires.  This keeps the engine's Lua-side
-			// sound-state bookkeeping accurate: Mix_Playing() returns true for the
-			// correct duration, and PlaySoundFileCallback fires only after the sound
-			// actually completes.  (Phase 5.7 fix — sync firing caused deterministic
-			// +363s crash via cascading PlaySoundFileCallback → LuaLoadFile.)
+			// BufferSourceNode.onended fires.
 		}
 #else
 		DUSTY_LOG("audio", "warn", "[dusty.audio] sfx channel-request vol=%d", sample->volume);
