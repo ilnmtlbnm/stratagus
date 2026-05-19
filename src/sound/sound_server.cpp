@@ -777,10 +777,7 @@ static int ems_find_free_channel()
 
 // dusty_sfx_finished — called from JS (main thread / shell) when
 // BufferSourceNode.onended fires for channel `ch`.  Marks the C-side channel
-// free and pushes the SDL_SOUND_FINISHED event so the engine's event loop (on
-// the engine pthread) can invoke the registered FinishedCallback.
-// SDL_PeepEvents is thread-safe, so this is safe to call from the Emscripten
-// main thread.
+// free.  Does NOT call ChannelFinished() — see Phase 5.11 comment below.
 extern "C" EMSCRIPTEN_KEEPALIVE void dusty_sfx_finished(int ch)
 {
 	if (ch < 0 || ch >= MaxChannels) return;
@@ -790,7 +787,21 @@ extern "C" EMSCRIPTEN_KEEPALIVE void dusty_sfx_finished(int ch)
 	if (!ems_ch_playing[ch].load()) return;  // double-check after lock
 	ems_ch_playing[ch].store(false);
 	ems_ch_sample[ch] = nullptr;
-	ChannelFinished(ch);
+	// dusty-bytes Phase 5.11: do NOT call ChannelFinished here.
+	// The legacy chain (SDL_SOUND_FINISHED → HandleSoundEvent →
+	// PlaySoundFileCallback → LuaActionListener::action → Lua function →
+	// Load(...) → CclLoad → LuaLoadFile) is the source of the +363s crash.
+	// We've migrated AUDIO PLAYBACK to dusty.audio.* but left the
+	// post-play Lua callback chain intact through this call site.
+	// Cutting it here makes the chain dead.
+	// Side effect: Lua listeners registered via PlaySoundFile(name, callback)
+	// for voice-chain continuation (PlayNextVoice in database.lua:540 and
+	// menus/campaign.lua:95) will not fire.  That's acceptable — voice chains
+	// are not exercised in the WC2 demo replay session and are a known
+	// pre-existing gap.  See docs/patches/stratagus.md Phase 5.11.
+	// Engine state (Channels[ch].Unit etc.) is reset when a new sound takes
+	// the channel via PlaySample; we only need to clear Unit here.
+	Channels[ch].Unit = nullptr;
 }
 #endif
 
