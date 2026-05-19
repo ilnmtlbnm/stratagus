@@ -332,12 +332,16 @@ static void GameLogicLoop()
 		WaitEventsOneFrame();
 	}
 
-	// dusty-bytes: force incremental Lua GC every frame to prevent string-table
-	// growth from starving the collector.  Without this, Lua 5.1's incremental GC
-	// never accumulates enough debt to self-trigger, and luaS_newlstr OOBs at
-	// ~frame 20400.  100 GC "steps" is cheap (~1–2µs measured on this engine).
-	if (Lua) {
-		lua_gc(Lua, LUA_GCSTEP, 100);
+	// dusty-bytes: 5-second heartbeat with Lua memory + GC + frame count so we
+	// can correlate trap timing with state growth (e.g. is Lua heap unbounded?).
+	{
+		static unsigned int s_hb_counter = 0;
+		if ((++s_hb_counter % 300) == 0) {  // ~5s at 60Hz
+			int lua_kb = Lua ? lua_gc(Lua, LUA_GCCOUNT, 0) : -1;
+			DUSTY_LOG("script", "warn",
+			          "[heartbeat] frame=%u cycle=%lu lua_kb=%d",
+			          s_hb_counter, (unsigned long)GameCycle, lua_kb);
+		}
 	}
 
 	if (!NetworkInSync) {

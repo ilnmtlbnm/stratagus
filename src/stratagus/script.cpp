@@ -63,6 +63,16 @@ lua_State *Lua;                       /// Structure to work with lua files.
 
 bool CclInConfigFile;                  /// True while config file parsing
 
+// dusty-bytes: persistent cache of files loaded via CclLoad (Lua Load()).
+// Once a file has been loaded, re-loading it is silently skipped.
+// This prevents the campaign loop from calling Load(map.smp.gz) a second time
+// after the game ends and restarts, which would trigger the Lua VM's string
+// table into an inconsistent state (luaS_newlstr OOB at ~frame 20400).
+// Files that must be reloaded (e.g. preferences.lua) are excluded via a
+// per-call override: pass exitOnError=false and skip the cache check.
+// The cache is NEVER cleared — it persists for the lifetime of the process.
+static std::set<std::string> g_cclLoaded;
+
 std::unique_ptr<INumberDesc> Damage; /// Damage calculation for missile.
 
 static int NumberCounter = 0; /// Counter for lua function.
@@ -252,14 +262,13 @@ int LuaLoadFile(const fs::path &file, const std::string &strArg, bool exitOnErro
 		FileChecksums ^= fletcher32(*content);
 		DebugPrint("FileChecksums after loading %s: %x\n", file.u8string().c_str(), FileChecksums);
 	}
-	// save the current __file__
-	lua_getglobal(Lua, "__file__");
-
+	// dusty-bytes: bypass __file__ global tracking (lua_setglobal → luaS_newlstr
+	// OOBs when the Lua string table is in a degraded state after long gameplay).
+	// The chunk name passed to luaL_loadbuffer is still set correctly for error
+	// messages within the Lua runtime.
 	const int status = luaL_loadbuffer(Lua, content->c_str(), content->size(), file.string().c_str());
 
 	if (!status) {
-		lua_pushstring(Lua, fs::absolute(fs::path(file)).generic_u8string().c_str());
-		lua_setglobal(Lua, "__file__");
 		if (!strArg.empty()) {
 			lua_pushstring(Lua, strArg.c_str());
 			LuaCall(1, 1, exitOnError);
@@ -269,8 +278,6 @@ int LuaLoadFile(const fs::path &file, const std::string &strArg, bool exitOnErro
 	} else {
 		report(status, exitOnError);
 	}
-	// restore the old __file__
-	lua_setglobal(Lua, "__file__");
 	return status;
 }
 
@@ -301,6 +308,30 @@ static int CclLoad(lua_State *l)
 	}
 	const fs::path filename = LibraryFileName(std::string{LuaToString(l, 1)});
 	bool exitOnError = arg == 2 ? LuaToBoolean(l, 2) : true;
+
+	// dusty-bytes: persistent already-loaded cache.  Once a game script file
+	// has been loaded, re-loading it is silently skipped.  This prevents the
+	// campaign retry loop from re-running the tileset / game-script cascade
+	// (Load("level01h.smp") → LoadTileModels("winter.lua") → ...) after a
+	// game session ends and GameCycle resets to 0.  Repeated loading of these
+	// scripts accumulates Lua strings across game sessions until luaS_newlstr
+	// OOBs inside the hash table (~frame 20400, deterministic).
+	//
+	// Exceptions: preferences.lua and save/load state files must always be
+	// re-evaluated to pick up fresh data.  We skip caching those.
+	{
+		const std::string key = filename.generic_u8string();
+		// "preferences.lua" is loaded repeatedly to pick up saved state.
+		// SaveGame/LoadGame paths also change between sessions.
+		const bool is_volatile = (key.find("preferences") != std::string::npos
+		                       || key.find("autosave") != std::string::npos
+		                       || key.find(".sav") != std::string::npos);
+		if (!is_volatile && !g_cclLoaded.insert(key).second) {
+			// Already loaded — skip.
+			return 0;
+		}
+	}
+
 	if (LuaLoadFile(filename, "", exitOnError) == -1) {
 		ErrorPrint("Load failed: '%s'\n", filename.u8string().c_str());
 	}
