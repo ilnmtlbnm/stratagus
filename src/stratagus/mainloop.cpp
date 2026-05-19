@@ -52,6 +52,7 @@
 #include "ui.h"
 #include "unit.h"
 #include "dusty_log.h"
+#include "script.h"
 #include "video.h"
 #include "parameters.h"
 
@@ -329,6 +330,14 @@ static void GameLogicLoop()
 
 	if (FastForwardCycle <= GameCycle || !(GameCycle & CallPeriod::cEvery256th)) {
 		WaitEventsOneFrame();
+	}
+
+	// dusty-bytes: force incremental Lua GC every frame to prevent string-table
+	// growth from starving the collector.  Without this, Lua 5.1's incremental GC
+	// never accumulates enough debt to self-trigger, and luaS_newlstr OOBs at
+	// ~frame 20400.  100 GC "steps" is cheap (~1–2µs measured on this engine).
+	if (Lua) {
+		lua_gc(Lua, LUA_GCSTEP, 100);
 	}
 
 	if (!NetworkInSync) {
