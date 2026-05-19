@@ -60,9 +60,23 @@ LuaCallbackImpl::LuaCallbackImpl(lua_State *l, lua_Object f) : luastate(l)
 */
 void LuaCallbackImpl::pushPreamble()
 {
-	base = lua_gettop(luastate);
-	lua_getglobal(luastate, "_TRACEBACK");
+	// dusty-bytes: base must point to the slot WHERE the callback function
+	// will sit after the rawgeti push (gettop + 1).  LuaCall(…, base, …)
+	// inserts its own luatraceback error handler at position base, shifting
+	// the callback to base+1, which is exactly what lua_pcall expects.
+	//
+	// Previously this was: base = gettop; push _TRACEBACK (nil); push fn.
+	// That had two bugs:
+	//  1. lua_insert(L, base) where base == T (existing stack depth) would
+	//     corrupt live Lua call frames present in the stack (e.g. when
+	//     WaitEventsOneFrame fires a sound callback while the game is inside
+	//     ActionVictory ← TriggersEachCycle, both of which push items).
+	//  2. The nil from _TRACEBACK was never consumed for 0-result calls,
+	//     leaking one nil per invocation and causing Lua stack growth that
+	//     eventually triggered a luaS_resize on a corrupted strt.hash.
+	base = lua_gettop(luastate) + 1;
 	lua_rawgeti(luastate, LUA_REGISTRYINDEX, luaref);
+	// callback_fn is now at 'base' (== lua_gettop after the rawgeti above).
 	arguments = 0;
 }
 
