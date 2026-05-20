@@ -125,7 +125,10 @@ void COrder_Research::Execute(CUnit &unit) /* override */
 	const CUnitType &type = *unit.Type;
 
 
-	UnitShowAnimation(unit, !type.Animations->Research.empty() ? &type.Animations->Research : &type.Animations->Still);
+	// dusty-bytes: guard null Animations (full-game units in demo attract-mode recordings)
+	if (type.Animations) {
+		UnitShowAnimation(unit, !type.Animations->Research.empty() ? &type.Animations->Research : &type.Animations->Still);
+	}
 	if (unit.Wait) {
 		unit.Wait--;
 		return ;

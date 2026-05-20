@@ -57,12 +57,20 @@ void scrollToBottom(gcn::ScrollArea *);
 void scrollToTop(gcn::ScrollArea *);
 #endif
 
+class MenuScreen; // forward-declaration for back-reference
+
 class LuaActionListener : public gcn::ActionListener, public gcn::KeyListener, public gcn::MouseListener
 {
 	LuaCallbackImpl callback;
+	// dusty-bytes: back-reference to the MenuScreen that registered this listener
+	// via addLogicCallback.  When Lua GC destroys this object, the destructor
+	// nullifies MenuScreen::logiclistener so the virtual dispatch in
+	// MenuScreen::logic() doesn't hit a freed pointer (function signature mismatch).
+	MenuScreen *ownerMenuScreen = nullptr;
 public:
 	LuaActionListener(lua_State *lua, lua_Object function);
 	~LuaActionListener() override;
+	void setOwnerMenuScreen(MenuScreen *ms) { ownerMenuScreen = ms; }
 	void action(const gcn::ActionEvent &actionEvent) override;
 	void keyPressed(gcn::KeyEvent&) override;
 	void keyReleased(gcn::KeyEvent&) override;
@@ -564,6 +572,8 @@ public:
 	void stop(int result = 0, bool stopAll = false);
 	void stopAll(int result = 0) { stop(result, true); }
 	void addLogicCallback(LuaActionListener *listener);
+	// dusty-bytes: called by ~LuaActionListener to prevent use-after-free
+	void clearLogicListener() { logiclistener = nullptr; }
 	void setDrawMenusUnder(bool drawUnder) { this->drawUnder = drawUnder; }
 	bool getDrawMenusUnder() const { return this->drawUnder; }
 

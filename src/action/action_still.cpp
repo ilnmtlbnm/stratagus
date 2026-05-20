@@ -394,7 +394,10 @@ void COrder_Still::Execute(CUnit &unit) /* override */
 
 	switch (this->State) {
 		case SUB_STILL_STANDBY:
-			UnitShowAnimation(unit, &unit.Type->Animations->Still);
+			// dusty-bytes: guard null Animations (full-game units in demo attract-mode recordings)
+			if (unit.Type->Animations) {
+				UnitShowAnimation(unit, &unit.Type->Animations->Still);
+			}
 			break;
 		case SUB_STILL_ATTACK: // attacking unit in attack range.
 			AnimateActionAttack(unit, *this);

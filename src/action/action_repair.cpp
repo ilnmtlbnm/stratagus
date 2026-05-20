@@ -235,6 +235,8 @@ bool COrder_Repair::RepairUnit(const CUnit &unit, CUnit &goal)
 */
 static void AnimateActionRepair(CUnit &unit)
 {
+	// dusty-bytes: guard null Animations (full-game units in demo attract-mode recordings)
+	if (!unit.Type->Animations) { return; }
 	UnitShowAnimation(unit, &unit.Type->Animations->Repair);
 }
 

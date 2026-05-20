@@ -354,6 +354,13 @@ int UnitShowAnimationScaled(CUnit &unit, const std::vector<std::unique_ptr<CAnim
 		unit.Anim.Wait = 0;
 	}
 
+	// dusty-bytes: guard null CurrAnim — can occur when a unit type from a full-game
+	// recording has no animations in the demo build and the call site skipped the
+	// UnitShowAnimation call.  Without this, the Wait/Anim advance below traps.
+	if (!unit.Anim.CurrAnim || unit.Anim.CurrAnim->empty()) {
+		return 0;
+	}
+
 	if (unit.Anim.Rotate) {
 		signed char r = unit.Anim.Rotate;
 		if (r < 0) {
