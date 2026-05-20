@@ -253,7 +253,10 @@ void handleInput(const SDL_Event *event)
 			}
 		}
 	} else {
-		if (Gui) {
+		// dusty-bytes: Gui->logic() validates mTop's vtable before dispatching
+		// to prevent "function signature mismatch" WASM traps from stale widget
+		// pointers. The GuichanCallbacks check prevents running during gameplay.
+		if (Gui && GetCallbacks() == &GuichanCallbacks) {
 			Gui->logic();
 		}
 	}
@@ -299,6 +302,8 @@ LuaActionListener::LuaActionListener(lua_State *l, lua_Object f) :
 __attribute__((noinline,used))
 void LuaActionListener::action(const gcn::ActionEvent &event) /* override */
 {
+	// dusty-bytes: omit per-tick DUSTY_LOG — logicCallback fires every game-loop cycle,
+	// causing thousands of [LuaAction] entries per second (attract-mode timer spam).
 	callback.call(event.getId());
 }
 
@@ -374,6 +379,15 @@ void LuaActionListener::mouseMoved(gcn::MouseEvent &event) /* override */
 */
 LuaActionListener::~LuaActionListener()
 {
+	// dusty-bytes: nullify the MenuScreen's logiclistener back-pointer.
+	// When Lua GC destroys this LuaActionListener while the attract-mode demo
+	// game is running, the next MenuScreen::logic() call would dereference a
+	// freed vtable and trap with "function signature mismatch".  Clearing the
+	// pointer here makes the logic() call a safe no-op instead.
+	if (ownerMenuScreen) {
+		ownerMenuScreen->clearLogicListener();
+		ownerMenuScreen = nullptr;
+	}
 }
 
 /*----------------------------------------------------------------------------
@@ -2713,7 +2727,18 @@ void MenuScreen::stop(int result, bool stopAll)
 
 void MenuScreen::addLogicCallback(LuaActionListener *listener)
 {
+	// dusty-bytes: clear any previous listener's back-reference before replacing it.
+	if (logiclistener && logiclistener != listener) {
+		logiclistener->setOwnerMenuScreen(nullptr);
+	}
 	logiclistener = listener;
+	if (listener) {
+		listener->setOwnerMenuScreen(this);
+	}
+	// The Lua-side MenuScreen() wrapper keeps self._logicListener = listener to
+	// prevent GC of the LuaActionListener while this C++ object holds a raw pointer
+	// to it.  The C++ destructor fix (~LuaActionListener nulls logiclistener) is a
+	// belt-and-suspenders for any path that bypasses the Lua wrapper.
 }
 
 void MenuScreen::draw(gcn::Graphics *graphics) /* override */

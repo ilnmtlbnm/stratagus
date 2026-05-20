@@ -674,6 +674,16 @@ function MenuScreen()
     guichanadd(self, widget, x, y)
   end
 
+  -- dusty-bytes: override addLogicCallback to keep a strong Lua reference to
+  -- the listener.  Without this, Lua GC can collect the LuaActionListener C++
+  -- object while the raw MenuScreen::logiclistener pointer still holds it,
+  -- causing a "function signature mismatch" WASM trap on the next logic tick.
+  local cAddLogicCallback = CMenuScreen.addLogicCallback
+  function menu:addLogicCallback(listener)
+    self._logicListener = listener  -- keep strong Lua reference (prevents GC)
+    cAddLogicCallback(self, listener)
+  end
+
   return menu
 end
 $]

@@ -45,6 +45,7 @@
 #include <SDL_image.h>
 #include <map>
 #include <string>
+#include <unordered_set>
 
 /*----------------------------------------------------------------------------
 --  Variables
@@ -52,6 +53,16 @@
 
 static int HashCount;
 static std::map<fs::path, std::weak_ptr<CGraphic>> GraphicHash;
+
+// dusty-bytes: once-per-path throttle for missing-surface draw warnings.
+// Prevents log spam when attract-mode demo plays units whose sprites are absent
+// from the demo build (each draw call would fire a DUSTY_LOG otherwise).
+static std::unordered_set<std::string> s_asset_skip_warned;
+
+static bool dusty_asset_skip_warn_once(const fs::path &file) {
+    auto key = file.u8string();
+    return s_asset_skip_warned.insert(std::move(key)).second;
+}
 
 /*----------------------------------------------------------------------------
 --  Functions
@@ -66,7 +77,7 @@ static std::map<fs::path, std::weak_ptr<CGraphic>> GraphicHash;
 */
 void CGraphic::DrawClip(int x, int y,
 						SDL_Surface *surface /*= TheScreen*/) const {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawClip", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	int oldx = x;
 	int oldy = y;
 	int w = Width;
@@ -88,7 +99,7 @@ void CGraphic::DrawClip(int x, int y,
 */
 void CGraphic::DrawSub(int gx, int gy, int w, int h, int x, int y,
 					   SDL_Surface *surface /*= TheScreen*/) const {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawSub", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	Assert(surface);
 
 	SDL_Rect srect = {Sint16(gx), Sint16(gy), Uint16(w), Uint16(h)};
@@ -113,7 +124,7 @@ void CGraphic::DrawSub(int gx, int gy, int w, int h, int x, int y,
 */
 void CGraphic::DrawSubCustomMod(int gx, int gy, int w, int h, int x, int y,
 							    pixelModifier modifier, const uint32_t param, SDL_Surface *surface /*= TheScreen*/) const {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawSubCustomMod", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	Assert(surface);
 	Assert(surface->format->BitsPerPixel == 32);
 
@@ -151,7 +162,7 @@ void CGraphic::DrawSubCustomMod(int gx, int gy, int w, int h, int x, int y,
 */
 void CGraphic::DrawSubClip(int gx, int gy, int w, int h, int x, int y,
 						   SDL_Surface *surface /*= TheScreen*/) const {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawSubClip", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	Assert(surface);
 
 	int oldx = x;
@@ -179,7 +190,7 @@ void CGraphic::DrawSubClip(int gx, int gy, int w, int h, int x, int y,
 */
 void CGraphic::DrawSubTrans(int gx, int gy, int w, int h, int x, int y,
 							unsigned char alpha, SDL_Surface *surface /*= TheScreen*/) const {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawSubTrans", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	Assert(surface);
 
 	Uint8 oldalpha = 0xff;
@@ -247,7 +258,7 @@ void CGraphic::DrawSubClipCustomMod(int gx, int gy, int w, int h, int x, int y,
 */
 void CGraphic::DrawFrame(unsigned frame, int x, int y,
 						 SDL_Surface *surface /*= TheScreen*/) const {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrame", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	DrawSub(frame_map[frame].x, frame_map[frame].y,
 			Width, Height, x, y, surface);
 }
@@ -263,7 +274,7 @@ void CGraphic::DrawFrame(unsigned frame, int x, int y,
 void CGraphic::DrawFrameClip(unsigned frame, int x, int y,
 							 SDL_Surface *surface /*= TheScreen*/) const
 {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameClip", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	DrawSubClip(frame_map[frame].x, frame_map[frame].y,
 				Width, Height, x, y, surface);
 }
@@ -271,7 +282,7 @@ void CGraphic::DrawFrameClip(unsigned frame, int x, int y,
 void CGraphic::DrawFrameTrans(unsigned frame, int x, int y, int alpha,
 							  SDL_Surface *surface /*= TheScreen*/) const
 {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameTrans", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	DrawSubTrans(frame_map[frame].x, frame_map[frame].y,
 				 Width, Height, x, y, alpha, surface);
 }
@@ -279,7 +290,7 @@ void CGraphic::DrawFrameTrans(unsigned frame, int x, int y, int alpha,
 void CGraphic::DrawFrameClipTrans(unsigned frame, int x, int y, int alpha,
 								  SDL_Surface *surface /* = TheScreen*/) const
 {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameClipTrans", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	DrawSubClipTrans(frame_map[frame].x, frame_map[frame].y,
 					 Width, Height, x, y, alpha, surface);
 }
@@ -289,7 +300,7 @@ void CGraphic::DrawFrameClipCustomMod(unsigned frame, int x, int y,
 									  const uint32_t param,
 									  SDL_Surface *surface /* = TheScreen*/) const
 {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameClipCustomMod", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	DrawSubClipCustomMod(frame_map[frame].x, frame_map[frame].y,
 						 Width, Height, x, y, modifier, param, surface);
 }
@@ -307,7 +318,7 @@ void CPlayerColorGraphic::DrawPlayerColorFrameClip(int colorIndex, unsigned fram
 												   int x, int y,
 												   SDL_Surface *surface /*= TheScreen*/)
 {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawPlayerColorFrameClip", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	GraphicPlayerPixels(colorIndex, *this);
 	DrawFrameClip(frame, x, y, surface);
 }
@@ -323,7 +334,7 @@ void CPlayerColorGraphic::DrawPlayerColorFrameClip(int colorIndex, unsigned fram
 void CGraphic::DrawFrameX(unsigned frame, int x, int y,
 						  SDL_Surface *surface /*= TheScreen*/) const
 {
-	if (!SurfaceFlip) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameX", File.u8string().c_str()); return; }
+	if (!SurfaceFlip) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	SDL_Rect srect = {frameFlip_map[frame].x, frameFlip_map[frame].y, Uint16(Width), Uint16(Height)};
 	SDL_Rect drect = {Sint16(x), Sint16(y), 0, 0};
 
@@ -341,7 +352,7 @@ void CGraphic::DrawFrameX(unsigned frame, int x, int y,
 void CGraphic::DrawFrameClipX(unsigned frame, int x, int y,
 							  SDL_Surface *surface /*= TheScreen*/) const
 {
-	if (!SurfaceFlip) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameClipX", File.u8string().c_str()); return; }
+	if (!SurfaceFlip) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	SDL_Rect srect = {frameFlip_map[frame].x, frameFlip_map[frame].y, Uint16(Width), Uint16(Height)};
 
 	const int oldx = x;
@@ -358,7 +369,7 @@ void CGraphic::DrawFrameClipX(unsigned frame, int x, int y,
 void CGraphic::DrawFrameTransX(unsigned frame, int x, int y, int alpha,
 							   SDL_Surface *surface /*= TheScreen*/) const
 {
-	if (!SurfaceFlip) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameTransX", File.u8string().c_str()); return; }
+	if (!SurfaceFlip) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	SDL_Rect srect = {frameFlip_map[frame].x, frameFlip_map[frame].y, Uint16(Width), Uint16(Height)};
 	SDL_Rect drect = {Sint16(x), Sint16(y), 0, 0};
 	Uint8 oldalpha = 0xff;
@@ -372,7 +383,7 @@ void CGraphic::DrawFrameTransX(unsigned frame, int x, int y, int alpha,
 void CGraphic::DrawFrameClipTransX(unsigned frame, int x, int y, int alpha,
 								   SDL_Surface *surface /*= TheScreen*/) const
 {
-	if (!SurfaceFlip) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawFrameClipTransX", File.u8string().c_str()); return; }
+	if (!SurfaceFlip) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	SDL_Rect srect = {frameFlip_map[frame].x, frameFlip_map[frame].y, Uint16(Width), Uint16(Height)};
 
 	int oldx = x;
@@ -403,7 +414,7 @@ void CPlayerColorGraphic::DrawPlayerColorFrameClipX(int colorIndex, unsigned fra
 													int x, int y,
 													SDL_Surface *surface /*= TheScreen*/)
 {
-	if (!mSurface) { DUSTY_LOG("asset", "warn", "[asset-skip] path=%s kind=draw method=DrawPlayerColorFrameClipX", File.u8string().c_str()); return; }
+	if (!mSurface) { if (dusty_asset_skip_warn_once(File)) { DUSTY_LOG("asset", "warn", "[asset-skip-once] path=%s kind=draw", File.u8string().c_str()); } return; }
 	GraphicPlayerPixels(colorIndex, *this);
 	DrawFrameClipX(frame, x, y, surface);
 }

@@ -341,7 +341,10 @@ bool COrder_Build::StartBuilding(CUnit &unit, CUnit &ontop)
 
 	// We need somebody to work on it.
 	if (!type.BoolFlag[BUILDEROUTSIDE_INDEX].value) {
-		UnitShowAnimation(unit, &unit.Type->Animations->Still);
+		// dusty-bytes: guard null Animations (full-game units in demo attract-mode recordings)
+		if (unit.Type->Animations) {
+			UnitShowAnimation(unit, &unit.Type->Animations->Still);
+		}
 		unit.Remove(build);
 		this->State = State_BuildFromInside;
 		if (unit.Selected) {

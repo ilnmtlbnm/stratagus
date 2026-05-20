@@ -156,6 +156,10 @@ int DoActionMove(CUnit &unit)
 	Vec2i posd{}; // movement in tile.
 	int d{};
 
+	// dusty-bytes: guard null Animations (full-game units in demo attract-mode recordings)
+	if (!unit.Type->Animations) {
+		return PF_UNREACHABLE;
+	}
 	if (unit.Moving != 1
 	    && (&unit.Type->Animations->Move != unit.Anim.CurrAnim
 	        || (unit.Anim.Wait == 0 && unit.Anim.Anim == 0))) {

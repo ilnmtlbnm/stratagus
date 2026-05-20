@@ -256,7 +256,10 @@ void COrder_Board::Execute(CUnit &unit) /* override */
 			if (this->WaitForTransporter(unit)) {
 				this->State = State_EnterTransporter;
 			} else {
-				UnitShowAnimation(unit, &unit.Type->Animations->Still);
+				// dusty-bytes: guard null Animations (full-game units in demo attract-mode recordings)
+				if (unit.Type->Animations) {
+					UnitShowAnimation(unit, &unit.Type->Animations->Still);
+				}
 			}
 			break;
 

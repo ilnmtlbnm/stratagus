@@ -276,6 +276,8 @@ PixelPos COrder_UpgradeTo::Show(const CViewport &,
 
 static void AnimateActionUpgradeTo(CUnit &unit)
 {
+	// dusty-bytes: guard null Animations (full-game units in demo attract-mode recordings)
+	if (!unit.Type->Animations) { return; }
 	CAnimations &animations = *unit.Type->Animations;
 
 	UnitShowAnimation(unit, !animations.Upgrade.empty() ? &animations.Upgrade : &animations.Still);

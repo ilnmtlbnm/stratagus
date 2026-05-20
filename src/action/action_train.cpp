@@ -170,6 +170,8 @@ static bool CanHandleOrder(const CUnit &unit, COrder *order)
 
 static void AnimateActionTrain(CUnit &unit)
 {
+	// dusty-bytes: guard null Animations (full-game units in demo attract-mode recordings)
+	if (!unit.Type->Animations) { return; }
 	if (!unit.Type->Animations->Train.empty()) {
 		UnitShowAnimation(unit, &unit.Type->Animations->Train);
 	} else {

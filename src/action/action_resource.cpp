@@ -620,6 +620,8 @@ int COrder_Resource::StartGathering(CUnit &unit)
 */
 static void AnimateActionHarvest(CUnit &unit)
 {
+	// dusty-bytes: guard null Animations (full-game units in demo attract-mode recordings)
+	if (!unit.Type->Animations) { return; }
 	Assert(!unit.Type->Animations->Harvest[unit.CurrentResource].empty());
 	UnitShowAnimation(unit, &unit.Type->Animations->Harvest[unit.CurrentResource]);
 }
