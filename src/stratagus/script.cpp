@@ -340,13 +340,26 @@ static int CclLoad(lua_State *l)
 	//
 	// Exceptions: preferences.lua and save/load state files must always be
 	// re-evaluated to pick up fresh data.  We skip caching those.
+	//
+	// dusty-bytes: ALSO exempt scripts that are part of the per-tileset reload
+	// cascade.  wargus's design loads icons.lua and constructions.lua TWICE:
+	// once at boot (stratagus.lua) with wargus.tileset=nil to register names,
+	// and again per-mission (via scripts/scripts.lua, triggered from the
+	// tileset's lua) with wargus.tileset=<winter|wasteland|...> to bind the
+	// actual graphics to those names.  Caching the boot load made the
+	// per-tileset reload silently skip, so icons stayed null and the in-game
+	// HUD (portrait + command buttons) rendered blank.  scripts.lua itself
+	// only runs per-tileset (not at boot) but we list it for symmetry.
 	{
 		const std::string key = filename.generic_u8string();
 		// "preferences.lua" is loaded repeatedly to pick up saved state.
 		// SaveGame/LoadGame paths also change between sessions.
 		const bool is_volatile = (key.find("preferences") != std::string::npos
 		                       || key.find("autosave") != std::string::npos
-		                       || key.find(".sav") != std::string::npos);
+		                       || key.find(".sav") != std::string::npos
+		                       || key.find("/scripts/icons.lua") != std::string::npos
+		                       || key.find("/scripts/constructions.lua") != std::string::npos
+		                       || key.find("/scripts/scripts.lua") != std::string::npos);
 		if (!is_volatile && !g_cclLoaded.insert(key).second) {
 			// Already loaded — skip.
 			return 0;
