@@ -308,9 +308,17 @@ void InitVideoSdl()
 	if (SDL_WasInit(SDL_INIT_VIDEO) == 0) {
 		// Fix tablet input in full-screen mode
 		SDL_setenv("SDL_MOUSE_RELATIVE", "0", 1);
+		// dusty-bytes: SDL_INIT_TIMER spawns SDL_TimerThread which busy-waits on
+		// an SDL_SpinLock to service the timer queue. Stratagus never calls
+		// SDL_AddTimer / SDL_RemoveTimer — the queue is permanently empty — but
+		// the thread keeps running, and on Emscripten + pthread its hot spin
+		// path has been the source of repeated OOB / function-table-mismatch
+		// traps (Phase 5.14 patched SDL_Delay → busy-wait inside the spin; this
+		// removes the thread entirely). SDL_GetTicks works without SDL_INIT_TIMER
+		// (uses a different code path).
 		int res = SDL_Init(
 					  SDL_INIT_AUDIO | SDL_INIT_VIDEO |
-					  SDL_INIT_EVENTS | SDL_INIT_TIMER);
+					  SDL_INIT_EVENTS);
 		if (res < 0) {
 			ErrorPrint("Couldn't initialize SDL: %s\n", SDL_GetError());
 			exit(1);
