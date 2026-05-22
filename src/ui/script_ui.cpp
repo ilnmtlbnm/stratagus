@@ -53,6 +53,10 @@
 #include "unittype.h"
 #include "video.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 /*----------------------------------------------------------------------------
 --  Variables
 ----------------------------------------------------------------------------*/
@@ -437,6 +441,25 @@ static int CclSetTitleScreens(lua_State *l)
 			lua_pop(l, 1);
 		}
 	}
+	return 0;
+}
+
+/**
+**  [dusty-bytes] DustyExit — post {action:'exit'} to the shell Worker so it
+**  navigates back to content.html. Uses MAIN_THREAD_EM_ASM so that the call
+**  is proxied to the Emscripten main thread (engine runs on a pthread).
+**
+**  @param l  Lua state.
+*/
+static int CclDustyExit(lua_State * /*l*/)
+{
+#ifdef __EMSCRIPTEN__
+	MAIN_THREAD_EM_ASM({
+		if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
+			self.postMessage({ action: 'exit' });
+		}
+	});
+#endif
 	return 0;
 }
 
@@ -1299,6 +1322,7 @@ void UserInterfaceCclRegister()
 
 	lua_register(Lua, "SetTitleScreens", CclSetTitleScreens);
 	lua_register(Lua, "ShowTitleScreens", CclShowTitleScreens);
+	lua_register(Lua, "DustyExit", CclDustyExit);
 
 	lua_register(Lua, "DefinePanelContents", CclDefinePanelContents);
 	lua_register(Lua, "DefinePopup", CclDefinePopup);
