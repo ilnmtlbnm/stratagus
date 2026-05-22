@@ -297,6 +297,7 @@ set(stratagusmain_SRCS
 	src/stratagus/script_player.cpp
 	src/stratagus/selection.cpp
 	src/stratagus/stratagus.cpp
+	src/stratagus/dusty_input.cpp
 	src/stratagus/title.cpp
 	src/stratagus/translate.cpp
 	src/stratagus/util.cpp
