@@ -454,11 +454,10 @@ static int CclSetTitleScreens(lua_State *l)
 static int CclDustyExit(lua_State * /*l*/)
 {
 #ifdef __EMSCRIPTEN__
-	MAIN_THREAD_EM_ASM({
-		if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
-			self.postMessage({ action: 'exit' });
-		}
-	});
+	// exit(0) from a pthread proxies to the Emscripten main thread via
+	// exitOnMainThread, fires Module.onExit in the Worker, which posts
+	// {action:'exit'} to shell.js → navigates to content.html.
+	exit(0);
 #endif
 	return 0;
 }
