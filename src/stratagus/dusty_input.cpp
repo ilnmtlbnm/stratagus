@@ -23,6 +23,13 @@
 
 extern "C" {
 
+// All six event types here correspond to events shell.js forwards via
+// postMessage({action:'event'}): mousemove, mousedown, mouseup, wheel,
+// keydown, keyup. Touch is translated to synthetic mouse events upstream.
+// No other DOM event ever reaches the worker as an 'event' action — visibility,
+// focus, resize, beforeunload are owned by shell.js at page level and never
+// proxied into the engine. So this is the complete input surface.
+
 EMSCRIPTEN_KEEPALIVE
 void dusty_input_mouse_motion(int x, int y, int xrel, int yrel, int buttonState)
 {
@@ -157,20 +164,6 @@ void dusty_input_key(int jsKeyCode, int modMask, int down, int repeat)
 			SDL_PushEvent(&textEvt);
 		}
 	}
-}
-
-EMSCRIPTEN_KEEPALIVE
-void dusty_input_text(const char* text)
-{
-	if (!text || !*text) return;
-	SDL_Event evt;
-	memset(&evt, 0, sizeof(evt));
-	evt.text.type = SDL_TEXTINPUT;
-	evt.text.timestamp = SDL_GetTicks();
-	evt.text.windowID = 1;
-	strncpy(evt.text.text, text, sizeof(evt.text.text) - 1);
-	evt.text.text[sizeof(evt.text.text) - 1] = '\0';
-	SDL_PushEvent(&evt);
 }
 
 } // extern "C"
