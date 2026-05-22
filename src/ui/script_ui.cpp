@@ -454,10 +454,14 @@ static int CclSetTitleScreens(lua_State *l)
 static int CclDustyExit(lua_State * /*l*/)
 {
 #ifdef __EMSCRIPTEN__
-	// exit(0) from a pthread proxies to the Emscripten main thread via
-	// exitOnMainThread, fires Module.onExit in the Worker, which posts
-	// {action:'exit'} to shell.js → navigates to content.html.
-	exit(0);
+	// Call self.dusty.exit() on the Emscripten main thread (Worker thread).
+	// dusty.exit is registered in worker-shim.js and posts {action:'exit'} to
+	// the shell which navigates to content.html. Mirrors the audio bridge pattern.
+	MAIN_THREAD_EM_ASM({
+		if (typeof self !== 'undefined' && self.dusty && self.dusty.exit) {
+			self.dusty.exit();
+		}
+	});
 #endif
 	return 0;
 }
