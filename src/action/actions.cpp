@@ -34,6 +34,7 @@
 ----------------------------------------------------------------------------*/
 
 #include "actions.h"
+#include "dusty_log.h"
 
 #include "action/action_attack.h"
 #include "action/action_board.h"
@@ -547,12 +548,17 @@ static void DumpUnitInfo(const CUnit &unit)
 
 static void UnitActionsEachCycle(const std::vector<CUnit *> &units)
 {
+	int idx = 0;
 	for (auto *unitPtr : units) {
 		CUnit &unit = *unitPtr;
+		++idx;
 
 		if (unit.Destroyed) {
 			continue;
 		}
+		// dusty-bytes: per-iteration uaec disabled (was flooding the 300-entry
+		// ring buffer and pushing out higher-level breadcrumbs). Re-enable
+		// when hunting hang/UAF inside unit code path.
 
 		if (!ReplayRevealMap && unit.Selected && !unit.IsVisible(*ThisPlayer)) {
 			UnSelectUnit(unit);
@@ -616,12 +622,18 @@ void UnitActions()
 	// Unit list may be modified during loop... so make a copy
 	std::vector<CUnit *> units(UnitManager->GetUnits());
 
+	// dusty-bytes: phase boundary markers — last log before silence pins the hang.
+	DUSTY_LOG("tick-phase", "warn", "[ua-enter] cycle=%lu nunits=%zu", (unsigned long)GameCycle, units.size());
+
 	// Check for things that only happen every second
 	if (isASecondCycle) {
+		DUSTY_LOG("tick-phase", "warn", "[ua-sec] cycle=%lu", (unsigned long)GameCycle);
 		UnitActionsEachSecond(units);
+		DUSTY_LOG("tick-phase", "warn", "[ua-sec-done] cycle=%lu", (unsigned long)GameCycle);
 	}
 	// Do all actions
 	UnitActionsEachCycle(units);
+	DUSTY_LOG("tick-phase", "warn", "[ua-exit] cycle=%lu", (unsigned long)GameCycle);
 }
 
 //@}
