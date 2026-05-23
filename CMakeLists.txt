@@ -54,6 +54,17 @@ option(DOWNLOAD_FREEPATS OFF)
 
 project(stratagus)
 
+# dusty-bytes: diagnostic ring for guisan UAF investigation. Must be set
+# BEFORE add_subdirectory(third-party) so guisan_lib picks it up. Off for
+# ship builds (the trace pushes themselves perturb memory enough to turn a
+# downstream HANG into a UAF-OOB heisenbug). Flip ON via -DDUSTY_DME_TRACE=ON
+# when chasing a trap whose stack points into Gui::*.
+option(DUSTY_DME_TRACE "Enable per-step DME_TRACE in guisan" OFF)
+if(DUSTY_DME_TRACE)
+	add_compile_definitions(DUSTY_DME_TRACE)
+	message(STATUS "dusty-bytes: DUSTY_DME_TRACE enabled")
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/third-party/CMakeLists.txt")
 	add_subdirectory(third-party EXCLUDE_FROM_ALL SYSTEM)
 else()
@@ -729,14 +740,6 @@ if (BUILD_VENDORED_SDL)
 elseif(EMSCRIPTEN)
 	# dusty-bytes: enable DUSTY_LOG bridge to dusty.log() in the Worker.
 	add_definitions(-DDUSTY_LOG_ENABLED)
-	# dusty-bytes: to re-enable the per-step DME_TRACE diagnostic in
-	# third-party/guisan/src/gui.cpp during UAF investigation, uncomment
-	# the block below. Disabled by default — adds ~30 calls per
-	# distributeMouseEvent invocation, fast but not free. See
-	# docs/findings-logs/wc2-overnight-loop-2026-05-23.md for the workflow.
-	#if(TARGET guisan_lib)
-	#	target_compile_definitions(guisan_lib PRIVATE DUSTY_DME_TRACE)
-	#endif()
 	# dusty-bytes: use emcc ports for SDL2/SDL2_image/SDL2_mixer.
 	set(EMS_SDL_FLAGS "-sUSE_SDL=2 -sUSE_SDL_IMAGE=2 -sUSE_SDL_MIXER=2 -sSDL2_IMAGE_FORMATS=[\"png\"]")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EMS_SDL_FLAGS}")

@@ -556,9 +556,10 @@ static void UnitActionsEachCycle(const std::vector<CUnit *> &units)
 		if (unit.Destroyed) {
 			continue;
 		}
-		// dusty-bytes: per-iteration uaec disabled (was flooding the 300-entry
-		// ring buffer and pushing out higher-level breadcrumbs). Re-enable
-		// when hunting hang/UAF inside unit code path.
+		// dusty-bytes: per-iteration logging disabled — it perturbed memory/timing
+		// enough to convert a HANG in HandleUnitAction into a UAF-OOB in input
+		// dispatch. Re-enable only for active diagnosis, with awareness that the
+		// added DUSTY_LOG calls shift heap/atomic state.
 
 		if (!ReplayRevealMap && unit.Selected && !unit.IsVisible(*ThisPlayer)) {
 			UnSelectUnit(unit);
