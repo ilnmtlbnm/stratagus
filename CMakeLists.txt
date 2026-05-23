@@ -754,7 +754,7 @@ elseif(EMSCRIPTEN)
 	# EXIT_RUNTIME=0: Emscripten keeps the runtime alive while pthreads are running.
 	# PTHREAD_POOL_SIZE=4: pre-spawns workers; engine thread uses one from the pool.
 	# --profiling-funcs kept: wasm name section needed for readable stack traces.
-	set(EMS_LINK_FLAGS "-sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -fno-lto --profiling-funcs -sUSE_PTHREADS=1 -sPTHREAD_POOL_SIZE=4 -sSHARED_MEMORY=1 -sDEFAULT_PTHREAD_STACK_SIZE=8388608 -sEXPORTED_FUNCTIONS=_main,_dusty_sfx_finished,_dusty_input_mouse_motion,_dusty_input_mouse_button,_dusty_input_mouse_wheel,_dusty_input_key --preload-file ${STRATAGUS_DATA_PRELOAD}")
+	set(EMS_LINK_FLAGS "-sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -fno-lto --profiling-funcs -sUSE_PTHREADS=1 -sPTHREAD_POOL_SIZE=4 -sSHARED_MEMORY=1 -sDEFAULT_PTHREAD_STACK_SIZE=8388608 -sEXPORTED_FUNCTIONS=_main,_dusty_sfx_finished,_dusty_input_mouse_motion,_dusty_input_mouse_button,_dusty_input_mouse_wheel,_dusty_input_key,_dusty_lua_eval,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,stringToUTF8,lengthBytesUTF8 --preload-file ${STRATAGUS_DATA_PRELOAD}")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto -pthread")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto -pthread")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_LINK_FLAGS}")

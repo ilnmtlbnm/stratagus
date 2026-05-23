@@ -36,6 +36,8 @@
 #include "online_service.h"
 #include "stratagus.h"
 
+#include <atomic>
+
 #include "actions.h"
 #include "dusty_log.h"
 #include "script.h"
@@ -260,6 +262,24 @@ static void InitGameCallbacks()
 
 static void GameLogicLoop()
 {
+	// dusty-bytes: pending Lua eval from JS (test harness). Single producer
+	// (JS via dusty_lua_eval) → single consumer (this loop on engine pthread).
+	// Atomic exchange swaps in nullptr to claim the buffer for execution.
+	extern std::atomic<char *> g_dustyPendingLuaEval;
+	char *pending = g_dustyPendingLuaEval.exchange(nullptr, std::memory_order_acq_rel);
+	if (pending != nullptr) {
+		DUSTY_LOG("lua-eval", "warn", "[dusty-eval] executing %d bytes", (int)strlen(pending));
+		int err = luaL_loadstring(Lua, pending) || lua_pcall(Lua, 0, LUA_MULTRET, 0);
+		if (err) {
+			const char *msg = lua_tostring(Lua, -1);
+			DUSTY_LOG("lua-eval", "warn", "[dusty-eval] error: %s", msg ? msg : "(no msg)");
+			lua_pop(Lua, 1);
+		} else {
+			DUSTY_LOG("lua-eval", "warn", "[dusty-eval] ok");
+		}
+		free(pending);
+	}
+
 	// Can't find a better place.
 	// FIXME: We need find better place!
 	SaveGameLoading = false;

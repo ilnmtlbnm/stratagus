@@ -19,7 +19,14 @@
 
 #include <SDL.h>
 #include <emscripten.h>
+#include <stdlib.h>
 #include <string.h>
+#include <atomic>
+
+// dusty-bytes: test-harness Lua eval queue. JS pushes a string via
+// dusty_lua_eval(); engine pthread drains it at the top of GameLogicLoop
+// (see mainloop.cpp). Single producer / single consumer → atomic exchange.
+std::atomic<char *> g_dustyPendingLuaEval{nullptr};
 
 extern "C" {
 
@@ -137,6 +144,28 @@ void dusty_input_key(int jsKeyCode, int modMask, int down, int repeat)
 	evt.key.keysym.sym = SDL_GetKeyFromScancode(scancode);
 	evt.key.keysym.mod = (Uint16)modMask;
 	SDL_PushEvent(&evt);
+}
+
+// dusty_lua_eval: queue a Lua string for engine pthread to execute at the
+// top of the next GameLogicLoop tick. Returns 0 on queued, -1 if a previous
+// eval is still pending. The engine pthread frees the buffer after running.
+EMSCRIPTEN_KEEPALIVE
+int dusty_lua_eval(const char *code)
+{
+	if (!code) return -1;
+	size_t n = strlen(code) + 1;
+	char *buf = (char *)malloc(n);
+	if (!buf) return -1;
+	memcpy(buf, code, n);
+	// Only queue if currently nullptr (don't overwrite a pending eval).
+	char *expected = nullptr;
+	if (!g_dustyPendingLuaEval.compare_exchange_strong(expected, buf,
+	                                                   std::memory_order_release,
+	                                                   std::memory_order_relaxed)) {
+		free(buf);
+		return -1;
+	}
+	return 0;
 }
 
 } // extern "C"
