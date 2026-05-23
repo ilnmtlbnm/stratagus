@@ -729,6 +729,14 @@ if (BUILD_VENDORED_SDL)
 elseif(EMSCRIPTEN)
 	# dusty-bytes: enable DUSTY_LOG bridge to dusty.log() in the Worker.
 	add_definitions(-DDUSTY_LOG_ENABLED)
+	# dusty-bytes: to re-enable the per-step DME_TRACE diagnostic in
+	# third-party/guisan/src/gui.cpp during UAF investigation, uncomment
+	# the block below. Disabled by default — adds ~30 calls per
+	# distributeMouseEvent invocation, fast but not free. See
+	# docs/findings-logs/wc2-overnight-loop-2026-05-23.md for the workflow.
+	#if(TARGET guisan_lib)
+	#	target_compile_definitions(guisan_lib PRIVATE DUSTY_DME_TRACE)
+	#endif()
 	# dusty-bytes: use emcc ports for SDL2/SDL2_image/SDL2_mixer.
 	set(EMS_SDL_FLAGS "-sUSE_SDL=2 -sUSE_SDL_IMAGE=2 -sUSE_SDL_MIXER=2 -sSDL2_IMAGE_FORMATS=[\"png\"]")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EMS_SDL_FLAGS}")
@@ -754,7 +762,7 @@ elseif(EMSCRIPTEN)
 	# EXIT_RUNTIME=0: Emscripten keeps the runtime alive while pthreads are running.
 	# PTHREAD_POOL_SIZE=4: pre-spawns workers; engine thread uses one from the pool.
 	# --profiling-funcs kept: wasm name section needed for readable stack traces.
-	set(EMS_LINK_FLAGS "-sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -fno-lto --profiling-funcs -sUSE_PTHREADS=1 -sPTHREAD_POOL_SIZE=4 -sSHARED_MEMORY=1 -sDEFAULT_PTHREAD_STACK_SIZE=8388608 -sEXPORTED_FUNCTIONS=_main,_dusty_sfx_finished,_dusty_input_mouse_motion,_dusty_input_mouse_button,_dusty_input_mouse_wheel,_dusty_input_key,_dusty_lua_eval,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,stringToUTF8,lengthBytesUTF8 --preload-file ${STRATAGUS_DATA_PRELOAD}")
+	set(EMS_LINK_FLAGS "-sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -fno-lto --profiling-funcs -sUSE_PTHREADS=1 -sPTHREAD_POOL_SIZE=4 -sSHARED_MEMORY=1 -sDEFAULT_PTHREAD_STACK_SIZE=8388608 -sEXPORTED_FUNCTIONS=_main,_dusty_sfx_finished,_dusty_input_mouse_motion,_dusty_input_mouse_button,_dusty_input_mouse_wheel,_dusty_input_key,_dusty_lua_eval,_dusty_trace_push,_dusty_trace_buf_addr,_dusty_trace_head,_dusty_trace_slots,_dusty_trace_slot_bytes,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,stringToUTF8,lengthBytesUTF8,HEAPU8 --preload-file ${STRATAGUS_DATA_PRELOAD}")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto -pthread")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto -pthread")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_LINK_FLAGS}")

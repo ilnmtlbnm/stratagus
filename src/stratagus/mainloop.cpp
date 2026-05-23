@@ -260,6 +260,8 @@ static void InitGameCallbacks()
 	GameCallbacks.NetworkEvent = NetworkEvent;
 }
 
+extern "C" void dusty_trace_push(const char *msg);
+
 static void GameLogicLoop()
 {
 	// dusty-bytes: pending Lua eval from JS (test harness). Single producer

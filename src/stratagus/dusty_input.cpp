@@ -168,4 +168,31 @@ int dusty_lua_eval(const char *code)
 	return 0;
 }
 
+// dusty-bytes: trap-survival diagnostic trace. Writes to a fixed-size
+// in-WASM ring buffer. JS reads it directly from shared HEAPU8 via the
+// pointer exports below — no cross-thread proxy (MAIN_THREAD_EM_ASM hits
+// the em_task_queue alignment bug from pthread context). Atomic head
+// makes single-producer-single-consumer safe.
+#define DUSTY_TRACE_SLOTS 16384
+#define DUSTY_TRACE_SLOT_BYTES 128
+static char g_dustyTrace[DUSTY_TRACE_SLOTS * DUSTY_TRACE_SLOT_BYTES];
+static std::atomic<int> g_dustyTraceHead{0};
+
+EMSCRIPTEN_KEEPALIVE
+void dusty_trace_push(const char *msg)
+{
+	if (!msg) return;
+	int slot = g_dustyTraceHead.fetch_add(1, std::memory_order_acq_rel) % DUSTY_TRACE_SLOTS;
+	char *dst = g_dustyTrace + (size_t)slot * DUSTY_TRACE_SLOT_BYTES;
+	size_t n = strlen(msg);
+	if (n >= DUSTY_TRACE_SLOT_BYTES) n = DUSTY_TRACE_SLOT_BYTES - 1;
+	memcpy(dst, msg, n);
+	dst[n] = '\0';
+}
+
+EMSCRIPTEN_KEEPALIVE uint32_t dusty_trace_buf_addr(void) { return (uint32_t)(uintptr_t)g_dustyTrace; }
+EMSCRIPTEN_KEEPALIVE int dusty_trace_head(void) { return g_dustyTraceHead.load(std::memory_order_acquire); }
+EMSCRIPTEN_KEEPALIVE int dusty_trace_slots(void) { return DUSTY_TRACE_SLOTS; }
+EMSCRIPTEN_KEEPALIVE int dusty_trace_slot_bytes(void) { return DUSTY_TRACE_SLOT_BYTES; }
+
 } // extern "C"
