@@ -257,6 +257,8 @@ static void InitGameCallbacks()
 	GameCallbacks.NetworkEvent = NetworkEvent;
 }
 
+extern "C" void dusty_trace_push(const char *msg);
+
 static void GameLogicLoop()
 {
 	// Can't find a better place.

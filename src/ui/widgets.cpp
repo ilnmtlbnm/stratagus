@@ -2671,6 +2671,21 @@ int MenuScreen::run(bool loop)
 	GameCursor = UI.Point.Cursor;
 	CursorOn = ECursorOn::Unknown;
 
+	// dusty-bytes: drain gcn::Input's mouse/key queues before handing control
+	// to the menu's Guichan loop. During gameplay, Input->pushInput accumulates
+	// SDL events (from JS dusty_input bridge) without Gui::logic ever draining
+	// them (because callbacks aren't GuichanCallbacks). When we switch to
+	// GuichanCallbacks below, Gui::logic processes the entire backlog all at
+	// once, dispatching mouse events whose target widgets (computed from
+	// coordinates against the gameplay widget tree) have since been freed.
+	// distributeMouseEvent then traps on freed widget pointers. The mid-mission
+	// post-combat OOB reproduces exactly this — see docs/findings-logs/
+	// wc2-overnight-loop-2026-05-23.md.
+	if (Input) {
+		while (!Input->isMouseQueueEmpty()) (void)Input->dequeueMouseInput();
+		while (!Input->isKeyQueueEmpty()) (void)Input->dequeueKeyInput();
+	}
+
 	if (loop) {
 		const EventCallback *old_callbacks = GetCallbacks();
 		SetCallbacks(&GuichanCallbacks);
