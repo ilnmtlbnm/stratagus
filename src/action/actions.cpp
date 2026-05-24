@@ -36,6 +36,9 @@
 #include "actions.h"
 #include "dusty_log.h"
 
+// dusty-bytes task-2: post-death trace gate (defined in unit.cpp)
+extern bool g_postDeathTrace;
+
 #include "action/action_attack.h"
 #include "action/action_board.h"
 #include "action/action_build.h"
@@ -578,10 +581,18 @@ static void UnitActionsEachCycle(const std::vector<CUnit *> &units)
 			continue;
 		}
 
+		if (g_postDeathTrace) {
+			DUSTY_LOG("unit-die", "debug", "[→dispatch] slot=%u type=%s cycle=%lu",
+				UnitNumber(unit), unit.Type ? unit.Type->Ident.c_str() : "?", (unsigned long)GameCycle);
+		}
 		try {
 			HandleUnitAction(unit);
 		} catch (AnimationDie_Exception &) {
 			AnimationDie_OnCatch(unit);
+		}
+		if (g_postDeathTrace) {
+			DUSTY_LOG("unit-die", "debug", "[←dispatch] slot=%u cycle=%lu",
+				UnitNumber(unit), (unsigned long)GameCycle);
 		}
 
 		if (EnableUnitDebug) {
@@ -625,6 +636,9 @@ void UnitActions()
 
 	// dusty-bytes: phase boundary markers — last log before silence pins the hang.
 	DUSTY_LOG("tick-phase", "debug", "[ua-enter] cycle=%lu nunits=%zu", (unsigned long)GameCycle, units.size());
+	if (g_postDeathTrace) {
+		DUSTY_LOG("unit-die", "debug", "[→UnitActions] cycle=%lu", (unsigned long)GameCycle);
+	}
 
 	// Check for things that only happen every second
 	if (isASecondCycle) {
@@ -635,6 +649,9 @@ void UnitActions()
 	// Do all actions
 	UnitActionsEachCycle(units);
 	DUSTY_LOG("tick-phase", "debug", "[ua-exit] cycle=%lu", (unsigned long)GameCycle);
+	if (g_postDeathTrace) {
+		DUSTY_LOG("unit-die", "debug", "[←UnitActions] cycle=%lu", (unsigned long)GameCycle);
+	}
 }
 
 //@}

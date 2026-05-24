@@ -40,6 +40,7 @@
 #include "action/action_build.h"
 
 #include "animation.h"
+#include "dusty_log.h"
 
 #include "animation/animation_attack.h"
 #include "animation/animation_die.h"
@@ -345,6 +346,8 @@ int ParseAnimInt(const CUnit &unit, const std::string_view s)
 */
 int UnitShowAnimationScaled(CUnit &unit, const std::vector<std::unique_ptr<CAnimation>> *anim, int scale)
 {
+	DUSTY_LOG("unit-die", "debug", "[→UnitShowAnimationScaled] slot=%u anim=%p wait=%zu animidx=%zu",
+		UnitNumber(unit), (const void*)anim, (size_t)unit.Anim.Wait, (size_t)unit.Anim.Anim);
 	// Changing animations
 	if (anim && !anim->empty() && unit.Anim.CurrAnim != anim) {
 		// Assert fails when transforming unit (upgrade-to).
@@ -397,6 +400,8 @@ int UnitShowAnimationScaled(CUnit &unit, const std::vector<std::unique_ptr<CAnim
 		// Advance to next frame
 		unit.Anim.Anim = (unit.Anim.Anim + 1) % unit.Anim.CurrAnim->size();
 	}
+	DUSTY_LOG("unit-die", "debug", "[←UnitShowAnimationScaled] slot=%u move=%d wait=%zu animidx=%zu",
+		UnitNumber(unit), move, (size_t)unit.Anim.Wait, (size_t)unit.Anim.Anim);
 	return move;
 }
 

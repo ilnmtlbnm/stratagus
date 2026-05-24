@@ -37,6 +37,7 @@
 
 #include "trigger.h"
 
+#include "dusty_log.h"
 #include "interface.h"
 #include "iolib.h"
 #include "map.h"
@@ -48,6 +49,9 @@
 #include "unittype.h"
 
 #include <vector>
+
+// dusty-bytes task-2: post-death trace gate (defined in unit.cpp)
+extern bool g_postDeathTrace;
 
 /*----------------------------------------------------------------------------
 --  Variables
@@ -525,6 +529,9 @@ static bool TriggerExecuteAction(lua_State *l, int trig)
 */
 void TriggersEachCycle()
 {
+	if (g_postDeathTrace) {
+		DUSTY_LOG("unit-die", "debug", "[→TriggersEachCycle] cycle=%lu", (unsigned long)GameCycle);
+	}
 	const int base = lua_gettop(Lua);
 
 	lua_getglobal(Lua, "_triggers_");
@@ -549,6 +556,9 @@ void TriggersEachCycle()
 		lua_settop(Lua, base + 1);
 	}
 	lua_pop(Lua, 1);
+	if (g_postDeathTrace) {
+		DUSTY_LOG("unit-die", "debug", "[←TriggersEachCycle] cycle=%lu", (unsigned long)GameCycle);
+	}
 }
 
 /**
