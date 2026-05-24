@@ -386,6 +386,11 @@ int UnitShowAnimationScaled(CUnit &unit, const std::vector<std::unique_ptr<CAnim
 	int move = 0;
 	while (!unit.Anim.Wait) {
 		(*unit.Anim.CurrAnim)[unit.Anim.Anim]->Action(unit, move, scale);
+		// dusty-bytes: break out of the animation loop if the die-signal was set —
+		// the unit is about to die; UnitActionsEachCycle will call AnimationDie_OnCatch.
+		if (gAnimationDieUnit) {
+			return move;
+		}
 		if (!unit.Anim.Wait) {
 			// Advance to next frame
 			unit.Anim.Anim = (unit.Anim.Anim + 1) % unit.Anim.CurrAnim->size();

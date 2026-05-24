@@ -38,6 +38,7 @@
 #include "action/action_die.h"
 
 #include "animation.h"
+#include "animation/animation_die.h"
 #include "iolib.h"
 #include "unit.h"
 #include "unittype.h"
@@ -103,6 +104,12 @@ void COrder_Die::Execute(CUnit &unit) /* override */
 	if (AnimateActionDie(unit) == false) {
 		// some units has no death animation
 		unit.Anim.Unbreakable = 0;
+	}
+	// dusty-bytes: if the die-signal was set by CAnimation_Die::Action inside
+	// AnimateActionDie, propagate it up — equivalent to the old exception unwind.
+	// UnitActionsEachCycle will call AnimationDie_OnCatch after we return.
+	if (gAnimationDieUnit) {
+		return;
 	}
 	if (unit.Anim.Unbreakable) {
 		return ;

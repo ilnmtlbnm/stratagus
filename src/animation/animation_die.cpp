@@ -40,6 +40,16 @@
 
 #include <cstdio>
 
+// dusty-bytes: ASYNCIFY death-hang fix — in-band signal replaces exception throw.
+// CAnimation_Die::Action sets this instead of throwing; the animation loop in
+// UnitShowAnimationScaled breaks on it; UnitActionsEachCycle checks it after
+// HandleUnitAction returns and calls AnimationDie_OnCatch (identical semantics
+// to the old catch block), then clears it.
+// The exception path (throw/catch) was the bug: ASYNCIFY rewrites async-reachable
+// frames and silently drops the exception during unwind, so the catch in
+// UnitActionsEachCycle never ran and the main loop never resumed.
+CUnit *gAnimationDieUnit = nullptr;
+
 void CAnimation_Die::Action(CUnit &unit, int & /*move*/, int /*scale*/) const /* override */
 {
 	Assert(unit.Anim.CurrAnim);
@@ -51,7 +61,7 @@ void CAnimation_Die::Action(CUnit &unit, int & /*move*/, int /*scale*/) const /*
 	if (this->DeathType.empty() == false) {
 		unit.DamagedType = ExtraDeathIndex(this->DeathType);
 	}
-	throw AnimationDie_Exception();
+	gAnimationDieUnit = &unit;
 }
 
 void CAnimation_Die::Init(std::string_view s, lua_State *) /* override */

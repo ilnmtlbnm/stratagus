@@ -34,6 +34,7 @@
 ----------------------------------------------------------------------------*/
 
 #include "actions.h"
+#include "dusty_log.h"
 
 #include "action/action_attack.h"
 #include "action/action_board.h"
@@ -571,9 +572,13 @@ static void UnitActionsEachCycle(const std::vector<CUnit *> &units)
 			continue;
 		}
 
-		try {
-			HandleUnitAction(unit);
-		} catch (AnimationDie_Exception &) {
+		HandleUnitAction(unit);
+		// dusty-bytes: ASYNCIFY death-hang fix — check in-band signal set by
+		// CAnimation_Die::Action (which replaced the throw AnimationDie_Exception).
+		// This mirrors the semantics of the old try/catch: death is handled after
+		// HandleUnitAction returns, at the same point in the cycle.
+		if (gAnimationDieUnit == &unit) {
+			gAnimationDieUnit = nullptr;
 			AnimationDie_OnCatch(unit);
 		}
 
