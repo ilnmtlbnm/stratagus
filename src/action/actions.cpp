@@ -616,12 +616,18 @@ void UnitActions()
 	// Unit list may be modified during loop... so make a copy
 	std::vector<CUnit *> units(UnitManager->GetUnits());
 
+	// dusty-bytes: phase boundary markers — last log before silence pins the hang.
+	DUSTY_LOG("tick-phase", "debug", "[ua-enter] cycle=%lu nunits=%zu", (unsigned long)GameCycle, units.size());
+
 	// Check for things that only happen every second
 	if (isASecondCycle) {
+		DUSTY_LOG("tick-phase", "debug", "[ua-sec] cycle=%lu", (unsigned long)GameCycle);
 		UnitActionsEachSecond(units);
+		DUSTY_LOG("tick-phase", "debug", "[ua-sec-done] cycle=%lu", (unsigned long)GameCycle);
 	}
 	// Do all actions
 	UnitActionsEachCycle(units);
+	DUSTY_LOG("tick-phase", "debug", "[ua-exit] cycle=%lu", (unsigned long)GameCycle);
 }
 
 //@}

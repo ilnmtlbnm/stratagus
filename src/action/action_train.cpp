@@ -35,6 +35,8 @@
 
 #include "stratagus.h"
 
+#include "dusty_log.h"
+
 #include "action/action_train.h"
 
 #include "ai.h"
@@ -239,6 +241,7 @@ void COrder_Train::Execute(CUnit &unit) /* override */
 
 	DropOutOnSide(*newUnit, LookingW, &unit);
 	player.Notify(ColorGreen, newUnit->tilePos, _("New %s ready"), nType.Name.c_str());
+	DUSTY_LOG("gameplay", "info", "[unit-trained] slot=%u type=%s player=%d from=%u", UnitNumber(*newUnit), nType.Ident.c_str(), player.Index, UnitNumber(unit));
 	if (&player == ThisPlayer) {
 		PlayUnitSound(*newUnit, EUnitVoice::Ready);
 	}

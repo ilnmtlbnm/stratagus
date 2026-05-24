@@ -36,6 +36,8 @@
 
 #include "stratagus.h"
 
+#include "dusty_log.h"
+
 #include "ui.h"
 
 #include "actions.h"
@@ -1277,6 +1279,7 @@ void CButtonPanel::DoClicked_Train(int button)
 		UI.StatusLine.ClearCosts();
 	}
 	else if (ThisPlayer->CheckLimits(type) == ECheckLimit::InsufficientSupply) {
+		DUSTY_LOG("gameplay", "info", "[train-denied] reason=supply type=%s player=%d", type.Ident.c_str(), ThisPlayer->Index);
 		if (GameSounds.NotEnoughFood[ThisPlayer->Race].Sound) {
 			PlayGameSound(GameSounds.NotEnoughFood[ThisPlayer->Race].Sound.get(), MaxSampleVolume);
 		}

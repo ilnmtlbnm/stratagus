@@ -1273,17 +1273,26 @@ void CUnit::Remove(CUnit *host)
 */
 void UnitLost(CUnit &unit)
 {
+	DUSTY_LOG("unit-die", "debug", "[unitlost-enter] slot=%u player=%d ai=%d",
+	          UnitNumber(unit),
+	          unit.Player ? unit.Player->Index : -1,
+	          unit.Player && unit.Player->AiEnabled ? 1 : 0);
+
 	Assert(unit.Player);  // Next code didn't support no player!
 	CPlayer &player = *unit.Player;
 
 	//  Call back to AI, for killed or lost units.
 	if (Editor.Running == EditorNotRunning) {
 		if (player.AiEnabled) {
+			DUSTY_LOG("unit-die", "debug", "[unitlost-stage] slot=%u AiUnitKilled entering", UnitNumber(unit));
 			AiUnitKilled(unit);
+			DUSTY_LOG("unit-die", "debug", "[unitlost-stage] slot=%u AiUnitKilled returned", UnitNumber(unit));
 		} else {
 			//  Remove unit from its groups
 			if (unit.GroupId) {
+				DUSTY_LOG("unit-die", "debug", "[unitlost-stage] slot=%u RemoveUnitFromGroups entering", UnitNumber(unit));
 				RemoveUnitFromGroups(unit);
+				DUSTY_LOG("unit-die", "debug", "[unitlost-stage] slot=%u RemoveUnitFromGroups returned", UnitNumber(unit));
 			}
 		}
 	}
@@ -1355,7 +1364,9 @@ void UnitLost(CUnit &unit)
 	}
 
 	//  Handle order cancels.
+	DUSTY_LOG("unit-die", "debug", "[unitlost-stage] slot=%u CurrentOrder Cancel entering", UnitNumber(unit));
 	unit.CurrentOrder()->Cancel(unit);
+	DUSTY_LOG("unit-die", "debug", "[unitlost-stage] slot=%u CurrentOrder Cancel returned", UnitNumber(unit));
 
 	DebugPrint("%d: Lost %s(%d)\n", player.Index, type.Ident.c_str(), UnitNumber(unit));
 
@@ -1374,6 +1385,7 @@ void UnitLost(CUnit &unit)
 			}
 		}
 	}
+	DUSTY_LOG("unit-die", "debug", "[unitlost-exit] slot=%u", UnitNumber(unit));
 }
 
 /**
@@ -2315,6 +2327,15 @@ PixelPos CUnit::GetMapPixelPosCenter() const
 */
 void LetUnitDie(CUnit &unit, bool suicide)
 {
+	// dusty-bytes: instrumentation for post-death crash diagnosis.
+	// Engine pthread traps a few seconds after a unit dies and we don't get
+	// a stack from the worker error path. These checkpoints land in the ring
+	// buffer so we can see exactly which sub-step was last entered.
+	DUSTY_LOG("unit-die", "debug", "[die-enter] slot=%u type=%s suicide=%d",
+	          UnitNumber(unit),
+	          unit.Type ? unit.Type->Ident.c_str() : "(null-type)",
+	          suicide ? 1 : 0);
+
 	unit.Variable[HP_INDEX].Value = std::min<int>(0, unit.Variable[HP_INDEX].Value);
 	unit.Moving = 0;
 	unit.TTL = 0;
@@ -2335,7 +2356,9 @@ void LetUnitDie(CUnit &unit, bool suicide)
 		return;
 	}
 
+	DUSTY_LOG("unit-die", "debug", "[die-stage] slot=%u PlayUnitSound entering", UnitNumber(unit));
 	PlayUnitSound(unit, EUnitVoice::Dying);
+	DUSTY_LOG("unit-die", "debug", "[die-stage] slot=%u PlayUnitSound returned", UnitNumber(unit));
 
 	//
 	// Catapults,... explodes.
@@ -2347,8 +2370,9 @@ void LetUnitDie(CUnit &unit, bool suicide)
 	}
 	if (type->OnDeath) {
 		const PixelPos pixelPos = unit.GetMapPixelPosCenter();
-
+		DUSTY_LOG("unit-die", "debug", "[die-stage] slot=%u OnDeath callback entering", UnitNumber(unit));
 		type->OnDeath(UnitNumber(unit), pixelPos.x, pixelPos.y);
+		DUSTY_LOG("unit-die", "debug", "[die-stage] slot=%u OnDeath callback returned", UnitNumber(unit));
 	}
 	if (suicide) {
 		const PixelPos pixelPos = unit.GetMapPixelPosCenter();
@@ -2371,9 +2395,13 @@ void LetUnitDie(CUnit &unit, bool suicide)
 		DestroyAllInside(unit);
 	}
 
+	DUSTY_LOG("unit-die", "debug", "[die-stage] slot=%u Remove entering", UnitNumber(unit));
 	unit.Remove(nullptr);
+	DUSTY_LOG("unit-die", "debug", "[die-stage] slot=%u UnitLost entering", UnitNumber(unit));
 	UnitLost(unit);
+	DUSTY_LOG("unit-die", "debug", "[die-stage] slot=%u UnitClearOrders entering", UnitNumber(unit));
 	UnitClearOrders(unit);
+	DUSTY_LOG("unit-die", "debug", "[die-stage] slot=%u removal block done, entering corpse setup", UnitNumber(unit));
 
 
 	// Unit has death animation.
@@ -2408,6 +2436,8 @@ void LetUnitDie(CUnit &unit, bool suicide)
 		//UnitCountSeen(unit);
 	}
 	MapMarkUnitSight(unit);
+	DUSTY_LOG("gameplay", "info", "[unit-died] slot=%u type=%s player=%d", UnitNumber(unit), type ? type->Ident.c_str() : "(null-type)", unit.Player ? unit.Player->Index : -1);
+	DUSTY_LOG("unit-die", "debug", "[die-exit] LetUnitDie complete");
 }
 
 /**
