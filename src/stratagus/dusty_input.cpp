@@ -144,6 +144,33 @@ void dusty_input_key(int jsKeyCode, int modMask, int down, int repeat)
 	evt.key.keysym.sym = SDL_GetKeyFromScancode(scancode);
 	evt.key.keysym.mod = (Uint16)modMask;
 	SDL_PushEvent(&evt);
+
+	// dusty-bytes 2026-05-24: synthesize SDL_TEXTINPUT for printable ASCII on
+	// keydown. Both guisan's menu hotkey dispatcher and stratagus's in-game
+	// InputKeyButtonPress check SDL_TEXTINPUT for printable chars and suppress
+	// the matching SDL_KEYDOWN (see third-party/guisan/src/sdl/sdlinput.cpp:151
+	// and src/video/sdl.cpp:639). Without a TEXTINPUT event, hotkeys like 's'
+	// (Single Player Game), 'b' (Build), 'a' (Attack) never fire.
+	//
+	// Guarded on (down && !repeat) so menu hotkeys don't double-trigger via
+	// auto-repeat. Modifier-held combos (Alt+S, Ctrl+S) are NOT printable in
+	// SDL's sense — those still go through the SDL_KEYDOWN path only.
+	if (down && !repeat) {
+		SDL_Keycode sym = SDL_GetKeyFromScancode(scancode);
+		if (sym >= 32 && sym <= 126 &&
+		    !(modMask & (KMOD_ALT | KMOD_CTRL | KMOD_GUI))) {
+			char ch = (char)sym;
+			if (modMask & KMOD_SHIFT && ch >= 'a' && ch <= 'z') ch -= 32;
+			SDL_Event textEvt;
+			memset(&textEvt, 0, sizeof(textEvt));
+			textEvt.type = SDL_TEXTINPUT;
+			textEvt.text.timestamp = SDL_GetTicks();
+			textEvt.text.windowID = 1;
+			textEvt.text.text[0] = ch;
+			textEvt.text.text[1] = '\0';
+			SDL_PushEvent(&textEvt);
+		}
+	}
 }
 
 // dusty_lua_eval: queue a Lua string for engine pthread to execute at the
