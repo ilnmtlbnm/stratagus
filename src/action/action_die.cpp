@@ -38,7 +38,7 @@
 #include "action/action_die.h"
 
 #include "animation.h"
-#include "dusty_log.h"
+#include "animation/animation_die.h"
 #include "iolib.h"
 #include "unit.h"
 #include "unittype.h"
@@ -100,25 +100,26 @@ static bool AnimateActionDie(CUnit &unit)
 
 void COrder_Die::Execute(CUnit &unit) /* override */
 {
-	DUSTY_LOG("unit-die", "debug", "[→COrder_Die::Execute] slot=%u type=%s unbreakable=%d",
-		UnitNumber(unit), unit.Type ? unit.Type->Ident.c_str() : "?", unit.Anim.Unbreakable);
 	// Show death animation
 	if (AnimateActionDie(unit) == false) {
 		// some units has no death animation
 		unit.Anim.Unbreakable = 0;
 	}
+	// dusty-bytes: if the die-signal was set by CAnimation_Die::Action inside
+	// AnimateActionDie, propagate it up — equivalent to the old exception unwind.
+	// UnitActionsEachCycle will call AnimationDie_OnCatch after we return.
+	if (gAnimationDieUnit) {
+		return;
+	}
 	if (unit.Anim.Unbreakable) {
-		DUSTY_LOG("unit-die", "debug", "[←COrder_Die::Execute] slot=%u still-unbreakable", UnitNumber(unit));
 		return ;
 	}
 	const CUnitType &type = *unit.Type;
 
 	// Die sequence terminated, generate corpse.
 	if (type.CorpseType == nullptr) {
-		DUSTY_LOG("unit-die", "debug", "[→COrder_Die::no-corpse] slot=%u releasing", UnitNumber(unit));
 		unit.Remove(nullptr);
 		unit.Release();
-		DUSTY_LOG("unit-die", "debug", "[←COrder_Die::Execute] slot=%u released", UnitNumber(unit));
 		return ;
 	}
 
@@ -129,8 +130,6 @@ void COrder_Die::Execute(CUnit &unit) /* override */
 	// We have to unmark BEFORE changing the type.
 	// Always do that, since types can have different vision properties.
 
-	DUSTY_LOG("unit-die", "debug", "[→COrder_Die::corpse] slot=%u corpseType=%s",
-		UnitNumber(unit), corpseType.Ident.c_str());
 	unit.Remove(nullptr);
 	unit.Type = &corpseType;
 	unit.Stats = const_cast<CUnitStats *>(&corpseType.Stats[unit.Player->Index]);
@@ -139,9 +138,7 @@ void COrder_Die::Execute(CUnit &unit) /* override */
 
 	unit.Frame = 0;
 	UnitUpdateHeading(unit);
-	DUSTY_LOG("unit-die", "debug", "[→COrder_Die::corpse-anim] slot=%u", UnitNumber(unit));
 	AnimateActionDie(unit); // with new corpse.
-	DUSTY_LOG("unit-die", "debug", "[←COrder_Die::Execute] slot=%u corpse-anim-done", UnitNumber(unit));
 }
 
 //@}

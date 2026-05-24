@@ -46,9 +46,9 @@ private:
 };
 
 
-class AnimationDie_Exception
-{
-};
+// dusty-bytes: in-band signal used instead of AnimationDie_Exception throw.
+// Set by CAnimation_Die::Action; checked/cleared by UnitActionsEachCycle.
+extern CUnit *gAnimationDieUnit;
 
 extern void AnimationDie_OnCatch(CUnit &unit);
 
