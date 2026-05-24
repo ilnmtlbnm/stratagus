@@ -31,6 +31,7 @@
 //@{
 
 #include "stratagus.h"
+#include "dusty_log.h"
 #include "action/action_built.h"
 
 #include "ai.h"
@@ -189,6 +190,7 @@ static void Finish(COrder_Built &order, CUnit &unit)
 	}
 
 	player.Notify(ColorGreen, unit.tilePos, _("New %s done"), type.Name.c_str());
+	DUSTY_LOG("gameplay", "info", "[building-complete] slot=%u type=%s player=%d", UnitNumber(unit), type.Ident.c_str(), player.Index);
 	if (&player == ThisPlayer) {
 		if (type.MapSound.Ready.Sound) {
 			PlayUnitSound(unit, EUnitVoice::Ready);

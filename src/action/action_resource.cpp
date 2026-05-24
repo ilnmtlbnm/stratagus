@@ -35,6 +35,8 @@
 
 #include "stratagus.h"
 
+#include "dusty_log.h"
+
 #include "action/action_resource.h"
 
 #include "ai.h"
@@ -1062,6 +1064,7 @@ int COrder_Resource::MoveToDepot(CUnit &unit)
 	const int rindex = resinfo.FinalResource;
 	player.ChangeResource(rindex, (unit.ResourcesHeld * player.Incomes[rindex]) / 100, true);
 	player.TotalResources[rindex] += (unit.ResourcesHeld * player.Incomes[rindex]) / 100;
+	DUSTY_LOG("gameplay", "info", "[resource-delivered] player=%d res=%d amount=%d worker=%u", player.Index, rindex, (unit.ResourcesHeld * player.Incomes[rindex]) / 100, UnitNumber(unit));
 	unit.ResourcesHeld = 0;
 	unit.CurrentResource = 0;
 
