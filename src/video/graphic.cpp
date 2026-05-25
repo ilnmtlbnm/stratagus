@@ -936,6 +936,10 @@ void CGraphic::Resize(int w, int h)
 
 void CGraphic::ResizeKeepRatio(int width, int height)
 {
+	if (this->OriginWidth <= 0 || this->OriginHeight <= 0) { // guard: 0-dim graphic (failed/missing asset) → div-by-zero at lines 940/942
+		DUSTY_LOG("asset", "warn", "[divzero] ResizeKeepRatio path=%s w=%d h=%d OriginWidth=%d OriginHeight=%d skipping", File.u8string().c_str(), width, height, OriginWidth, OriginHeight);
+		return;
+	}
 	if (this->OriginWidth * height < width * this->OriginHeight) {
 		this->Resize(this->OriginWidth * height / this->OriginHeight, height);
 	} else {
