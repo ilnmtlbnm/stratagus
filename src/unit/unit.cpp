@@ -350,10 +350,6 @@ static unsigned long HelpMeLastCycle;     /// Last cycle HelpMe sound played
 static int HelpMeLastX;                   /// Last X coordinate HelpMe sound played
 static int HelpMeLastY;                   /// Last Y coordinate HelpMe sound played
 
-// dusty-bytes task-2: post-death trace gate — set true when first [unit-died] fires;
-// gated per-cycle logs in actions.cpp/trigger.cpp emit only when this is true.
-bool g_postDeathTrace = false;
-
 
 /*----------------------------------------------------------------------------
 --  Functions
@@ -1592,8 +1588,6 @@ void UnitGoesOutOfFog(CUnit &unit, const CPlayer &player)
 */
 void UnitCountSeen(CUnit &unit)
 {
-	DUSTY_LOG("unit-die", "debug", "[→UnitCountSeen] slot=%u type=%s",
-		UnitNumber(unit), unit.Type ? unit.Type->Ident.c_str() : "?");
 	Assert(unit.Type);
 
 	// FIXME: optimize, only work on certain players?
@@ -1662,7 +1656,6 @@ void UnitCountSeen(CUnit &unit)
 			}
 		}
 	}
-	DUSTY_LOG("unit-die", "debug", "[←UnitCountSeen] slot=%u", UnitNumber(unit));
 }
 
 /**
@@ -2446,8 +2439,6 @@ void LetUnitDie(CUnit &unit, bool suicide)
 	MapMarkUnitSight(unit);
 	DUSTY_LOG("gameplay", "info", "[unit-died] slot=%u type=%s player=%d", UnitNumber(unit), type ? type->Ident.c_str() : "(null-type)", unit.Player ? unit.Player->Index : -1);
 	DUSTY_LOG("unit-die", "debug", "[die-exit] LetUnitDie complete");
-	// dusty-bytes task-2: enable post-death trace gate
-	g_postDeathTrace = true;
 }
 
 /**
