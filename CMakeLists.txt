@@ -777,7 +777,11 @@ elseif(EMSCRIPTEN)
 	# dusty_input_* added to REMOVE: these are JS→wasm exports called via
 	# wrapper from worker main thread, must not be ASYNCIFY-rewritten or the
 	# JS-side dynCall signature mismatches (vii vs viii).
-	set(EMS_LINK_FLAGS "-sASYNCIFY=1 -sASYNCIFY_STACK_SIZE=131072 -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -fno-lto --profiling-funcs -sEXPORTED_FUNCTIONS=_main,_dusty_sfx_finished,_dusty_input_mouse_motion,_dusty_input_mouse_button,_dusty_input_mouse_wheel,_dusty_input_key,_dusty_lua_eval,_dusty_trace_push,_dusty_trace_buf_addr,_dusty_trace_head,_dusty_trace_slots,_dusty_trace_slot_bytes,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,stringToUTF8,lengthBytesUTF8,HEAPU8 --preload-file ${STRATAGUS_DATA_PRELOAD}")
+	# dusty-bytes 2026-05-25: -lidbfs.js enables IDBFS (IndexedDB-backed FS) so the
+	# worker can mount a persistent save directory via FS.mount(IDBFS,...).
+	# Without this flag the IDBFS symbol is not linked in and the worker throws
+	# "IDBFS is not defined" at boot, silently dropping all save state.
+	set(EMS_LINK_FLAGS "-sASYNCIFY=1 -sASYNCIFY_STACK_SIZE=131072 -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -fno-lto --profiling-funcs -sEXPORTED_FUNCTIONS=_main,_dusty_sfx_finished,_dusty_input_mouse_motion,_dusty_input_mouse_button,_dusty_input_mouse_wheel,_dusty_input_key,_dusty_lua_eval,_dusty_trace_push,_dusty_trace_buf_addr,_dusty_trace_head,_dusty_trace_slots,_dusty_trace_slot_bytes,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,stringToUTF8,lengthBytesUTF8,HEAPU8 -lidbfs.js --preload-file ${STRATAGUS_DATA_PRELOAD}")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_LINK_FLAGS}")
