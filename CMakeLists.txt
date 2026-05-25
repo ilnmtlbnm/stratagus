@@ -65,8 +65,8 @@ if(DUSTY_DME_TRACE)
 	message(STATUS "dusty-bytes: DUSTY_DME_TRACE enabled")
 endif()
 
-if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/third-party/CMakeLists.txt")
-	add_subdirectory(third-party EXCLUDE_FROM_ALL SYSTEM)
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../dependencies/CMakeLists.txt")
+	add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../dependencies third-party-build EXCLUDE_FROM_ALL SYSTEM)
 else()
 	message(WARNING "Third-party directory not populated, cannot vendor any dependencies.")
 endif()
@@ -676,7 +676,7 @@ elseif(EMSCRIPTEN)
 	# clears the Emscripten toolchain so cmake picks up the host compiler.
 	set(_DUSTY_TOLUA_HOST_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/lua-host")
 	ExternalProject_Add(lua_host
-		SOURCE_DIR ${CMAKE_SOURCE_DIR}/third-party/lua-5.1.5/
+		SOURCE_DIR ${CMAKE_SOURCE_DIR}/../dependencies/lua-5.1.5/
 		PREFIX "${_DUSTY_TOLUA_HOST_PREFIX}"
 		CMAKE_ARGS
 			-DCMAKE_TOOLCHAIN_FILE=
@@ -1252,7 +1252,7 @@ endif ()
 target_link_libraries(stratagus_lib PUBLIC ${stratagus_LIBS} ${CMAKE_DL_LIBS} guisan_lib)
 target_link_libraries(stratagus PUBLIC stratagus_lib)
 
-target_include_directories(stratagus_lib SYSTEM PRIVATE third-party/mdns third-party/spiritless_po/include)
+target_include_directories(stratagus_lib SYSTEM PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../dependencies/mdns ${CMAKE_CURRENT_LIST_DIR}/../dependencies/spiritless_po/include)
 
 if(WITH_OPENMP AND OpenMP_CXX_FOUND)
 	add_definitions(-DUSE_OPENMP)
@@ -1262,11 +1262,11 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
-	set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/third-party/doctest/scripts/cmake")
+	set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/doctest/scripts/cmake")
 	include(doctest)
 
 	add_library(doctest INTERFACE IMPORTED)
-	target_include_directories(doctest SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/third-party/doctest/doctest")
+	target_include_directories(doctest SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/doctest/doctest")
 
 	add_executable(stratagus_tests ${stratagus_tests_SRCS})
 	target_link_libraries(stratagus_tests PUBLIC stratagus_lib doctest)
