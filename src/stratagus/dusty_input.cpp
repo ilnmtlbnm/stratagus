@@ -20,6 +20,8 @@
 #include <SDL.h>
 #include <emscripten.h>
 #include <string.h>
+#include <stdlib.h>
+#include <atomic>
 
 extern "C" {
 
