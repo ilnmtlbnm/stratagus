@@ -663,12 +663,8 @@ elseif(EMSCRIPTEN)
 	# (toluapp must run on the host, not in WASM).
 	include(ExternalProject)
 
-	# dusty-bytes: set -pthread early so that vendored_lua()'s ExternalProject_Add
-	# receives it via CMAKE_C_FLAGS. The pthread flags are also set again later in
-	# the SDL elseif(EMSCRIPTEN) block; this early set ensures the Lua sub-build
-	# inherits the atomics/bulk-memory feature that -sUSE_PTHREADS=1 requires.
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+	# dusty-bytes 2026-05-26 (ASYNCIFY revert for full): -pthread removed.  Lua
+	# sub-build no longer needs atomics/bulk-memory.  ASYNCIFY handles yielding.
 
 	# Emcc-side: vendored lua + toluapp static libs (vendored_lua uses
 	# ExternalProject_Add which inherits the parent's toolchain/env, so
@@ -745,28 +741,37 @@ elseif(EMSCRIPTEN)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EMS_SDL_FLAGS}")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_SDL_FLAGS}")
 
-	# dusty-bytes: runtime link flags for Worker + pthread + preloaded data.wargus.
+	# dusty-bytes: runtime link flags for Worker + ASYNCIFY + preloaded data.wargus.
 	# STRATAGUS_DATA_PRELOAD points at the host directory bundled into MEMFS at /data.wargus.
 	# Override at configure time: -DSTRATAGUS_DATA_PRELOAD=/abs/path@/data.wargus
+	# (configure-wc2-full.sh sets this to games/warcraft2/data.wargus — NOT demo path.)
 	if(NOT DEFINED STRATAGUS_DATA_PRELOAD)
-		set(STRATAGUS_DATA_PRELOAD "${CMAKE_SOURCE_DIR}/../../../dusty-games-platform/games-demo/warcraft2/data.wargus@/data.wargus")
+		set(STRATAGUS_DATA_PRELOAD "${CMAKE_SOURCE_DIR}/../../../dusty-games-platform/games/warcraft2/data.wargus@/data.wargus")
 	endif()
-	# dusty-bytes 2026-05-18 (Phase 5): ASYNCIFY removed entirely.
-	# stratagus uses SDL_Delay + SDL_PollEvent for its main loop — a native blocking
-	# pattern that maps cleanly to Atomics.wait on a pthread. SDL init (including
-	# SDL_OpenAudio, which calls EM_ASM that needs the MockAudioContext from
-	# worker-shim.js) runs on the Emscripten main thread. After InitVideo(),
-	# stratagusMain() spawns an engine pthread (via dusty_engine_thread) and calls
-	# emscripten_exit_with_live_runtime() so the main thread stays alive as the JS
-	# event pump. The engine pthread runs ShowTitleScreens/MenuLoop/etc. blocking on
-	# Atomics.wait instead of ASYNCIFY save/restore. No indirect-call type-tag
-	# mismatches, no rewind-into-freed-Lua-state OOBs.
-	# EXIT_RUNTIME=0: Emscripten keeps the runtime alive while pthreads are running.
-	# PTHREAD_POOL_SIZE=4: pre-spawns workers; engine thread uses one from the pool.
-	# --profiling-funcs kept: wasm name section needed for readable stack traces.
-	set(EMS_LINK_FLAGS "-sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -fno-lto --profiling-funcs -sUSE_PTHREADS=1 -sPTHREAD_POOL_SIZE=4 -sSHARED_MEMORY=1 -sDEFAULT_PTHREAD_STACK_SIZE=8388608 -sEXPORTED_FUNCTIONS=_main,_dusty_sfx_finished --preload-file ${STRATAGUS_DATA_PRELOAD}")
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto -pthread")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto -pthread")
+	# dusty-bytes 2026-05-26 (ASYNCIFY revert for full): pthread removed, ASYNCIFY restored.
+	# Mirrors demo's post-75790e279 state.  Full was on pthread (Phase 5 era); same
+	# reasons to revert apply: cross-thread Lua state corruption, em_task_queue alignment
+	# trap, MAIN_THREAD_EM_ASM proxy overhead, SAB requirements, more aggressive memory
+	# reuse exposing UAFs.  ASYNCIFY restores single-threaded determinism while keeping
+	# all orthogonal improvements (dusty.audio.*, dusty_input_*, guisan UAF guards).
+	#
+	# ASYNCIFY_REMOVE list: functions that must NOT be ASYNCIFY-rewritten because
+	# they're called via function table with a fixed type tag (vi/vii). EventCallback
+	# lambdas + sound callbacks + menu handlers.  LuaActionListener::action is NOT
+	# in the list (adding it shifts ASYNCIFY state table, corrupting indirect-call
+	# dispatches — proven: tolua_stratagus_CMenuScreen_run00 traps unreachable at boot).
+	#
+	# EXPORTED_FUNCTIONS: _dusty_lua_eval intentionally omitted — bf9c9a003 was
+	# skipped in task 4 and is not a task-6 cherry-pick; symbol does not exist in
+	# full's source.  All other _dusty_input_* / _dusty_trace_* / _dusty_sfx_finished
+	# are kept because task-6 cherry-picks (74fb23fe7/870a78618/8b6d5033d/da23191ce)
+	# will add them before the task-7 rebuild.
+	#
+	# -lidbfs.js folds in c3e83a649 (idbfs link flag from demo).
+	set(ASYNCIFY_REMOVE_LIST "[\"MenuHandleKeyDown\",\"MenuHandleKeyUp\",\"MenuHandleKeyRepeat\",\"MenuHandleMouseMove\",\"MenuHandleButtonNoop\",\"TitleCb_ButtonPressed\",\"TitleCb_ButtonReleased\",\"TitleCb_MouseMoved\",\"TitleCb_MouseExit\",\"TitleCb_KeyPressed\",\"TitleCb_KeyReleased\",\"TitleCb_KeyRepeated\",\"HandleSoundEvent(SDL_Event&)\",\"PlaySoundFileCallback(int)\",\"MusicFinishedCallback()\",\"CheckMusicFinished(int)\",\"ChannelFinished(int)\",\"StopMusic()\",\"SetMusicVolume(int)\",\"IsMusicPlaying()\"]")
+	set(EMS_LINK_FLAGS "-sASYNCIFY=1 -sASYNCIFY_STACK_SIZE=131072 -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -fno-lto --profiling-funcs -sEXPORTED_FUNCTIONS=_main,_dusty_sfx_finished,_dusty_input_mouse_motion,_dusty_input_mouse_button,_dusty_input_mouse_wheel,_dusty_input_key,_dusty_trace_push,_dusty_trace_buf_addr,_dusty_trace_head,_dusty_trace_slots,_dusty_trace_slot_bytes,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,stringToUTF8,lengthBytesUTF8,HEAPU8 -lidbfs.js --preload-file ${STRATAGUS_DATA_PRELOAD}")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_LINK_FLAGS}")
 	set(SDL2_FOUND TRUE)
 	set(SDL2_LIBRARY "")
