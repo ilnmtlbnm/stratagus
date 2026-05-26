@@ -836,27 +836,13 @@ try {
 	InitVideo();
 
 #ifdef __EMSCRIPTEN__
-	// dusty-bytes Phase 5: move the game loop onto a pthread so it can block
-	// on SDL_Delay + SDL_PollEvent via Atomics.wait instead of ASYNCIFY save/restore.
-	// SDL init (including SDL_OpenAudio and its EM_ASM AudioContext setup) runs on
-	// the Emscripten main thread above, where worker-shim.js mock globals are present.
-	// The engine pthread (dusty_engine_thread) runs everything from ShowTitleScreens
-	// onward. The main thread then surrenders to the JS event loop via
-	// emscripten_exit_with_live_runtime() so DOM events, SAB operations, and the
-	// audio ScriptProcessorNode keep firing.
-	// EXIT_RUNTIME=0 (in EMS_LINK_FLAGS) ensures exit() from the engine pthread
-	// terminates the runtime even though main() has returned.
-	{
-		pthread_t engine_thread;
-		int rc = pthread_create(&engine_thread, nullptr, dusty_engine_thread, nullptr);
-		if (rc != 0) {
-			ErrorPrint("stratagus: pthread_create failed: %d\n", rc);
-			exit(1);
-		}
-		pthread_detach(engine_thread);
-	}
-	emscripten_exit_with_live_runtime();
-	return 0; // unreachable; emscripten_exit_with_live_runtime does not return
+	// dusty-bytes 2026-05-26 (ASYNCIFY revert for full): direct call to engine thread
+	// body, mirroring the demo's post-75790e279 state. With ASYNCIFY back,
+	// SDL_Delay yields to JS via emscripten_sleep cooperatively; no pthread needed.
+	// Single-threaded execution eliminates the cross-thread Lua VM corruption that
+	// was causing instability on pthread builds. See docs/findings-logs/ for context.
+	dusty_engine_thread(nullptr);
+	return 0; // unreachable; Exit(0) inside the engine thread terminates.
 #else
 	PrintHeader();
 	PrintLicense();
