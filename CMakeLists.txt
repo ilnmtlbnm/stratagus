@@ -54,6 +54,17 @@ option(DOWNLOAD_FREEPATS OFF)
 
 project(stratagus)
 
+# dusty-bytes: diagnostic ring for guisan UAF investigation. Must be set
+# BEFORE add_subdirectory(third-party) so guisan_lib picks it up. Off for
+# ship builds (the trace pushes themselves perturb memory enough to turn a
+# downstream HANG into a UAF-OOB heisenbug). Flip ON via -DDUSTY_DME_TRACE=ON
+# when chasing a trap whose stack points into Gui::*.
+option(DUSTY_DME_TRACE "Enable per-step DME_TRACE in guisan" OFF)
+if(DUSTY_DME_TRACE)
+	add_compile_definitions(DUSTY_DME_TRACE)
+	message(STATUS "dusty-bytes: DUSTY_DME_TRACE enabled")
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../dependencies/CMakeLists.txt")
 	add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../dependencies third-party-build EXCLUDE_FROM_ALL SYSTEM)
 else()
