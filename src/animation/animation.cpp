@@ -36,6 +36,7 @@
 
 #include "stratagus.h"
 
+#include "dusty_log.h"
 #include "action/action_spellcast.h"
 #include "action/action_build.h"
 

@@ -36,6 +36,9 @@
 #include "online_service.h"
 #include "stratagus.h"
 
+#include <atomic>
+
+#include "dusty_log.h"
 #include "actions.h"
 #include "editor.h"
 #include "fow.h"

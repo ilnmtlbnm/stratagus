@@ -35,6 +35,7 @@
 
 #include "stratagus.h"
 
+#include "dusty_log.h"
 #include "unit.h"
 
 #include "action/action_attack.h"

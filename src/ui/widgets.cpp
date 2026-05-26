@@ -34,6 +34,7 @@
 ----------------------------------------------------------------------------*/
 
 #include "stratagus.h"
+#include "dusty_log.h"
 #include "video.h"
 #include "font.h"
 #include "cursor.h"
