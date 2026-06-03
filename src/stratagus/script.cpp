@@ -359,13 +359,7 @@ static int CclLoad(lua_State *l)
 		                       || key.find(".sav") != std::string::npos
 		                       || key.find("/scripts/icons.lua") != std::string::npos
 		                       || key.find("/scripts/constructions.lua") != std::string::npos
-		                       || key.find("/scripts/scripts.lua") != std::string::npos
-		                       // dusty-bytes: tileset scripts contain DefineTileset which sets
-		                       // Map.TileGraphic.  Map.Clean() nulls TileGraphic between missions,
-		                       // so the tileset must be re-loaded for every CreateGame call.
-		                       // Without this exemption, CMinimap::Create() derefs a nullptr
-		                       // TileGraphic on mission 2+ and traps as "null function" in WASM.
-		                       || key.find("tilesets/wargus/") != std::string::npos);
+		                       || key.find("/scripts/scripts.lua") != std::string::npos);
 		if (!is_volatile && !g_cclLoaded.insert(key).second) {
 			// Already loaded — skip.
 			return 0;
