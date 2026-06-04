@@ -1028,6 +1028,13 @@ void CreateGame(const fs::path &filename, CMap *map)
 	UI.Load();
 
 	Map.Init();
+	if (!Map.TileGraphic && !Map.Tileset.ImageFile.empty()) {
+		Map.TileGraphic = CGraphic::New(
+			Map.Tileset.ImageFile,
+			Map.Tileset.getPixelTileSize().x,
+			Map.Tileset.getPixelTileSize().y);
+		Map.TileGraphic->Load();
+	}
 	UI.Minimap.Create();
 	PreprocessMap();
 
