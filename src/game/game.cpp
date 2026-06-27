@@ -1028,12 +1028,25 @@ void CreateGame(const fs::path &filename, CMap *map)
 	UI.Load();
 
 	Map.Init();
+	// dusty-bytes instrumentation: log tileset state before CMinimap::Create()
+	DUSTY_LOG("engine", "info",
+	          "[CreateGame] pre-minimap: TileGraphic=%s ImageFile='%s' TilesetName='%s' map='%s'",
+	          Map.TileGraphic ? "non-null" : "NULL",
+	          Map.Tileset.ImageFile.c_str(),
+	          Map.Tileset.Name.c_str(),
+	          filename.string().c_str());
 	if (!Map.TileGraphic && !Map.Tileset.ImageFile.empty()) {
+		DUSTY_LOG("engine", "info",
+		          "[CreateGame] guard triggered: loading TileGraphic from '%s'",
+		          Map.Tileset.ImageFile.c_str());
 		Map.TileGraphic = CGraphic::New(
 			Map.Tileset.ImageFile,
 			Map.Tileset.getPixelTileSize().x,
 			Map.Tileset.getPixelTileSize().y);
 		Map.TileGraphic->Load();
+	} else if (!Map.TileGraphic) {
+		DUSTY_LOG("engine", "warn",
+		          "[CreateGame] GUARD SKIPPED: TileGraphic=null AND ImageFile=empty; CMinimap::Create() will crash!");
 	}
 	UI.Minimap.Create();
 	PreprocessMap();

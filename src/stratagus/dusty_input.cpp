@@ -168,6 +168,31 @@ void dusty_input_key(int jsKeyCode, int modMask, int down, int repeat)
 	}
 }
 
+// dusty_lua_eval: queue a Lua string for the engine to execute at the top of
+// the next GameLogicLoop tick. Single-slot atomic: returns 0 on success, -1 if
+// a previous eval is still pending. Engine drains it and calls free().
+// Used by the test harness (tools/wc2-mission-transition.cjs) to inject
+// ActionVictory() and trigger the M1→M2 transition autonomously.
+std::atomic<char *> g_dustyPendingLuaEval{nullptr};
+
+EMSCRIPTEN_KEEPALIVE
+int dusty_lua_eval(const char *code)
+{
+	if (!code) return -1;
+	size_t n = strlen(code) + 1;
+	char *buf = (char *)malloc(n);
+	if (!buf) return -1;
+	memcpy(buf, code, n);
+	char *expected = nullptr;
+	if (!g_dustyPendingLuaEval.compare_exchange_strong(expected, buf,
+	                                                    std::memory_order_release,
+	                                                    std::memory_order_relaxed)) {
+		free(buf);
+		return -1;
+	}
+	return 0;
+}
+
 // dusty-bytes: trap-survival diagnostic trace. Writes to a fixed-size
 // in-WASM ring buffer. JS reads it directly from shared HEAPU8 via the
 // pointer exports below — no cross-thread proxy (MAIN_THREAD_EM_ASM hits

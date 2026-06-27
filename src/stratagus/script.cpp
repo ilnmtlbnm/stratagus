@@ -74,8 +74,22 @@ bool CclInConfigFile;                  /// True while config file parsing
 // table into an inconsistent state (luaS_newlstr OOB at ~frame 20400).
 // Files that must be reloaded (e.g. preferences.lua) are excluded via a
 // per-call override: pass exitOnError=false and skip the cache check.
-// The cache is NEVER cleared — it persists for the lifetime of the process.
+// The cache is NEVER cleared wholesale — it persists for the lifetime of the
+// process. CclLoadedEraseSubpath() allows targeted erasure of specific path
+// patterns (used by CclLoadTileModels to force DefineTileset re-execution on
+// mission transitions).
 static std::set<std::string> g_cclLoaded;
+
+void CclLoadedEraseSubpath(std::string_view subpath)
+{
+	for (auto it = g_cclLoaded.begin(); it != g_cclLoaded.end(); ) {
+		if (it->find(subpath) != std::string::npos) {
+			it = g_cclLoaded.erase(it);
+		} else {
+			++it;
+		}
+	}
+}
 
 std::unique_ptr<INumberDesc> Damage; /// Damage calculation for missile.
 

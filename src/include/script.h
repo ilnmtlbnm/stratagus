@@ -83,6 +83,13 @@ extern int LuaLoadFile(const fs::path &file, const std::string &strArg = "", boo
 extern int LuaCall(int narg, int clear, bool exitOnError = true);
 extern int LuaCall(lua_State *L, int narg, int nresults, int base, bool exitOnError = true);
 
+// dusty-bytes: erase all g_cclLoaded entries whose path contains `subpath`.
+// Called from CclLoadTileModels before reloading a tileset so that the inner
+// Load("scripts/tilesets/wargus/<tileset>.lua") call — which is cached after
+// mission 1 — re-executes DefineTileset on subsequent missions. Does NOT
+// broadly exempt those files; they re-enter the cache after this call.
+extern void CclLoadedEraseSubpath(std::string_view subpath);
+
 std::string getLuaLocation(lua_State *l);
 
 #define LuaDebugPrint(l, format, ...) \

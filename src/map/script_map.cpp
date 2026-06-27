@@ -48,6 +48,7 @@
 #include "unit.h"
 #include "version.h"
 #include "video.h"
+#include "dusty_log.h"
 
 /*----------------------------------------------------------------------------
 --  Variables
@@ -898,9 +899,35 @@ static int CclLoadTileModels(lua_State *l)
 	}
 	Map.TileModelsFileName = LuaToString(l, 1);
 	const fs::path filename = LibraryFileName(Map.TileModelsFileName.string());
+
+	// dusty-bytes: On mission transitions the tileset wargus scripts
+	// (scripts/tilesets/wargus/<tileset>.lua) are cached in g_cclLoaded from
+	// mission 1.  CclLoadTileModels itself calls LuaLoadFile (bypassing the
+	// cache for the outer wrapper), but the outer wrapper immediately calls
+	// Load("scripts/tilesets/wargus/...") which hits the cache and skips
+	// DefineTileset.  Map.Clean() already nulled TileGraphic and cleared
+	// Tileset (including ImageFile), so the guard in CreateGame
+	// (!TileGraphic && !ImageFile.empty()) is permanently false.
+	// Fix: erase the wargus tileset subdir entries from the cache before
+	// calling LuaLoadFile.  They re-enter the cache normally after this load,
+	// so no script runs more times than intended across the full session.
+	DUSTY_LOG("engine", "info",
+	          "[LoadTileModels] tileset=%s TileGraphic=%s ImageFile='%s'",
+	          filename.u8string().c_str(),
+	          Map.TileGraphic ? "non-null" : "null",
+	          Map.Tileset.ImageFile.c_str());
+	CclLoadedEraseSubpath("scripts/tilesets/wargus/");
+	DUSTY_LOG("engine", "info",
+	          "[LoadTileModels] cache cleared for scripts/tilesets/wargus/; reloading tileset");
+
 	if (LuaLoadFile(filename) == -1) {
 		LuaError(l, "Load failed: \"%s\"\n", filename.u8string().c_str());
 	}
+
+	DUSTY_LOG("engine", "info",
+	          "[LoadTileModels] after load: TileGraphic=%s ImageFile='%s'",
+	          Map.TileGraphic ? "non-null" : "null",
+	          Map.Tileset.ImageFile.c_str());
 	return 0;
 }
 

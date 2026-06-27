@@ -770,15 +770,13 @@ elseif(EMSCRIPTEN)
 	# in the list (adding it shifts ASYNCIFY state table, corrupting indirect-call
 	# dispatches — proven: tolua_stratagus_CMenuScreen_run00 traps unreachable at boot).
 	#
-	# EXPORTED_FUNCTIONS: _dusty_lua_eval intentionally omitted — bf9c9a003 was
-	# skipped in task 4 and is not a task-6 cherry-pick; symbol does not exist in
-	# full's source.  All other _dusty_input_* / _dusty_trace_* / _dusty_sfx_finished
-	# are kept because task-6 cherry-picks (74fb23fe7/870a78618/8b6d5033d/da23191ce)
-	# will add them before the task-7 rebuild.
+	# dusty-bytes: _dusty_lua_eval now implemented in dusty_input.cpp (ported
+	# from demo fork commit bf9c9a003). Used by wc2-mission-transition.cjs to
+	# inject ActionVictory() for autonomous M1→M2 transition testing.
 	#
 	# -lidbfs.js folds in c3e83a649 (idbfs link flag from demo).
 	set(ASYNCIFY_REMOVE_LIST "[\"MenuHandleKeyDown\",\"MenuHandleKeyUp\",\"MenuHandleKeyRepeat\",\"MenuHandleMouseMove\",\"MenuHandleButtonNoop\",\"TitleCb_ButtonPressed\",\"TitleCb_ButtonReleased\",\"TitleCb_MouseMoved\",\"TitleCb_MouseExit\",\"TitleCb_KeyPressed\",\"TitleCb_KeyReleased\",\"TitleCb_KeyRepeated\",\"HandleSoundEvent(SDL_Event&)\",\"PlaySoundFileCallback(int)\",\"MusicFinishedCallback()\",\"CheckMusicFinished(int)\",\"ChannelFinished(int)\",\"StopMusic()\",\"SetMusicVolume(int)\",\"IsMusicPlaying()\"]")
-	set(EMS_LINK_FLAGS "-sASYNCIFY=1 -sASYNCIFY_STACK_SIZE=131072 -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -fno-lto --profiling-funcs -sEXPORTED_FUNCTIONS=_main,_dusty_sfx_finished,_dusty_input_mouse_motion,_dusty_input_mouse_button,_dusty_input_mouse_wheel,_dusty_input_key,_dusty_trace_push,_dusty_trace_buf_addr,_dusty_trace_head,_dusty_trace_slots,_dusty_trace_slot_bytes,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,stringToUTF8,lengthBytesUTF8,HEAPU8 -lidbfs.js --preload-file ${STRATAGUS_DATA_PRELOAD}")
+	set(EMS_LINK_FLAGS "-sASYNCIFY=1 -sASYNCIFY_STACK_SIZE=131072 -sASYNCIFY_REMOVE=${ASYNCIFY_REMOVE_LIST} -sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM=1 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -fno-lto --profiling-funcs -sEXPORTED_FUNCTIONS=_main,_dusty_sfx_finished,_dusty_lua_eval,_dusty_input_mouse_motion,_dusty_input_mouse_button,_dusty_input_mouse_wheel,_dusty_input_key,_dusty_trace_push,_dusty_trace_buf_addr,_dusty_trace_head,_dusty_trace_slots,_dusty_trace_slot_bytes,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,stringToUTF8,lengthBytesUTF8,HEAPU8 -lidbfs.js --preload-file ${STRATAGUS_DATA_PRELOAD}")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMS_LINK_FLAGS}")

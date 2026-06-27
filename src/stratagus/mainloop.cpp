@@ -264,6 +264,23 @@ extern "C" void dusty_trace_push(const char *msg);
 
 static void GameLogicLoop()
 {
+	// dusty-bytes: drain pending Lua eval from JS test harness (dusty_lua_eval).
+	// Single producer (JS via __dustyLuaEval) → single consumer (this loop).
+	extern std::atomic<char *> g_dustyPendingLuaEval;
+	char *pending = g_dustyPendingLuaEval.exchange(nullptr, std::memory_order_acq_rel);
+	if (pending != nullptr) {
+		DUSTY_LOG("lua-eval", "warn", "[dusty-eval] executing: %s", pending);
+		int err = luaL_loadstring(Lua, pending) || lua_pcall(Lua, 0, LUA_MULTRET, 0);
+		if (err) {
+			const char *msg = lua_tostring(Lua, -1);
+			DUSTY_LOG("lua-eval", "warn", "[dusty-eval] error: %s", msg ? msg : "(no msg)");
+			lua_pop(Lua, 1);
+		} else {
+			DUSTY_LOG("lua-eval", "warn", "[dusty-eval] ok");
+		}
+		free(pending);
+	}
+
 	// Can't find a better place.
 	// FIXME: We need find better place!
 	SaveGameLoading = false;
