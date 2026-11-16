@@ -839,7 +839,7 @@ try {
 	// body. With ASYNCIFY back, SDL_Delay yields to JS via emscripten_sleep
 	// cooperatively; no pthread needed. Single-threaded execution eliminates
 	// the cross-thread Lua VM corruption that was causing 3-min MTBF on user
-	// gameplay. See docs/findings-logs/overnight-2026-05-24.md for context.
+	// gameplay.
 	dusty_engine_thread(nullptr);
 	return 0; // unreachable; Exit(0) inside the engine thread terminates.
 #else
