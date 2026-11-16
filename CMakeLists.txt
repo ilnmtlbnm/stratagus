@@ -739,8 +739,8 @@ elseif(EMSCRIPTEN)
 	# dusty-bytes: to re-enable the per-step DME_TRACE diagnostic in
 	# third-party/guisan/src/gui.cpp during UAF investigation, uncomment
 	# the block below. Disabled by default — adds ~30 calls per
-	# distributeMouseEvent invocation, fast but not free. See
-	# docs/findings-logs/wc2-overnight-loop-2026-05-23.md for the workflow.
+	# distributeMouseEvent invocation, fast but not free.
+	#
 	#if(TARGET guisan_lib)
 	#	target_compile_definitions(guisan_lib PRIVATE DUSTY_DME_TRACE)
 	#endif()

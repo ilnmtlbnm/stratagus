@@ -2680,8 +2680,8 @@ int MenuScreen::run(bool loop)
 	// once, dispatching mouse events whose target widgets (computed from
 	// coordinates against the gameplay widget tree) have since been freed.
 	// distributeMouseEvent then traps on freed widget pointers. The mid-mission
-	// post-combat OOB reproduces exactly this — see docs/findings-logs/
-	// wc2-overnight-loop-2026-05-23.md.
+	// post-combat OOB reproduces exactly this.
+	//
 	if (Input) {
 		while (!Input->isMouseQueueEmpty()) (void)Input->dequeueMouseInput();
 		while (!Input->isKeyQueueEmpty()) (void)Input->dequeueKeyInput();
